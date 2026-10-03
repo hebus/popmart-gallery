@@ -4,7 +4,7 @@ Document de référence pour éviter les régressions. Toute modification de `in
 
 ## Vue d'ensemble
 
-- Application statique mobile-first, sans build : `index.html` (HTML, CSS et JS inline) + `products.js` (`window.PRODUCTS`) + `exchange.js` (couche données Supabase des échanges, sans UI) + `supabase/schema.sql` (base et règles de sécurité).
+- Application statique mobile-first, sans build : `index.html` (HTML, CSS et JS inline) + `products.js` (`window.PRODUCTS`) + `exchange.js` (couche données Supabase des échanges, sans UI) + `supabase/schema.sql` (base et règles de sécurité) + `sw.js`, `manifest.webmanifest` et `icons/` (PWA, voir « PWA et hors-ligne »).
 - `products.js` / `products.json` sont générés par `node list-products.mjs` (API publique popmart.com). Ne pas les éditer à la main.
 - Dépendances externes : GSAP + Flip (cdnjs) pour les animations, Google Fonts. L'appli doit rester **entièrement fonctionnelle sans elles** (voir « Animations »).
 - Conception visuelle : palette crème / encre (`--bg`, `--accent`…), mode sombre via `prefers-color-scheme`, cibles tactiles >= 44 px.
@@ -101,11 +101,31 @@ Quand la collection contient des figurines perso **et** que Supabase est configu
 
 - **Lien** : `BASE_URL#s=<id du partage, UUID>.<clé AES, 43 car. base64url>` (~125 caractères : QR minuscule, lisible même à la webcam). La clé est dans le **fragment `#`**, jamais envoyée au serveur ni à GitHub Pages ; le fragment est effacé de l'URL après lecture (`history.replaceState`).
 - **Contenu** : la sauvegarde v1 complète (catalogue + figurines perso + quantités), photos perso ré-encodées à **640 px / qualité 0,7** (`buildBackup({shrink:true})`). Chiffrement `encryptShare` : JSON -> deflate-raw -> AES-GCM 256 (IV aléatoire de 12 octets) -> base64url ; octet de tête : 1 = compressé, 0 = brut. Plafond **6 Mo** de texte chiffré (≈ 100 figurines) : au-delà, message avec la taille et repli vers le QR catalogue + sauvegarde par fichier.
-- **Serveur** (`supabase/shares.sql`, à exécuter une fois ; `supabase/shares-tests.sql` pour vérifier) : table `shares` en **RLS sans aucune policy** et sans droit direct (aucune énumération), uniquement via 3 fonctions `security definer` : `create_share` (utilisateurs connectés, compte anonyme créé à la demande ; format base64url et taille validés ; **5 partages actifs max par utilisateur**, plafond global de 300 Mo ; supprime les partages expirés à chaque appel), `get_share` (lecture publique par UUID, `null` si inexistant ou expiré), `delete_share` (propriétaire seulement). Le serveur ne voit que du texte chiffré : aucune photo lisible, pas de modération nécessaire.
+- **Serveur** (`supabase/shares.sql`, à exécuter une fois ; `supabase/shares-tests.sql` pour vérifier) : table `shares` en **RLS sans aucune policy** et sans droit direct (aucune énumération), uniquement via 3 fonctions `security definer` : `create_share` (utilisateurs connectés, compte anonyme créé à la demande ; format base64url et taille validés ; **5 partages actifs max par utilisateur**, plafond global de 300 Mo ; supprime les partages expirés à chaque appel (nettoyage « paresseux »)), `get_share` (lecture publique par UUID, `null` si inexistant ou expiré), `delete_share` (propriétaire seulement). Le serveur ne voit que du texte chiffré : aucune photo lisible, pas de modération nécessaire.
+- **Nettoyage automatique** : `supabase/cleanup.sql` (à exécuter une fois) planifie avec `pg_cron` la tâche `popmart-purge-shares`, qui supprime les partages expirés toutes les 30 minutes. Ils sont déjà illisibles dès l'expiration (`get_share` filtre `expires_at`) : la tâche ne fait que libérer le stockage. Sans elle, le nettoyage paresseux de `create_share` reste le filet de sécurité.
 - **Boutons** : « Copier le lien », « Partager… », **« Arrêter le partage »** (supprime côté serveur), « Sauvegarde par fichier », « Fermer ».
 - **Réception** : `#s=` est traité par le champ de lien collé, le scanner, la lecture de l'appareil photo et le hash au chargement, comme `#c=`. `importShare` : téléchargement, déchiffrement (`decryptShare`), `parseBackupText`, puis le même dialogue **Fusionner / Remplacer / Annuler** que la sauvegarde par fichier (photos ré-encodées). Erreurs distinguées : partage expiré ou arrêté, lien altéré ou clé fausse (échec d'authentification GCM), serveur injoignable.
 - **Limites de sécurité** : quiconque possède le lien peut lire le partage jusqu'à expiration ou arrêt (lien = capacité) ; déchiffré, il est validé comme tout fichier non fiable (décompression plafonnée à 60 Mo, mêmes contrôles qu'une sauvegarde).
 - **Repli** : Supabase injoignable, quota atteint ou trop volumineux -> message + QR catalogue seul. Le bouton Share est actif avec uniquement des figurines perso seulement si le partage en ligne est configuré.
+
+## PWA et hors-ligne
+
+L'appli est installable (« Ajouter à l'écran d'accueil ») et utilisable **hors-ligne**. Tous les chemins sont **relatifs** (`./sw.js`, `manifest.webmanifest`, `icons/…`) car GitHub Pages sert l'appli sous `/popmart-gallery/` : ne jamais écrire de chemin absolu `/…`.
+
+- **Fichiers** : `manifest.webmanifest` (nom, `start_url` et `scope` `./`, `display: standalone`, icônes 192 / 512 / maskable / svg), `sw.js` (service worker), `icons/` (générées par `node scripts/make-icons.mjs`, sans dépendance ; icône provisoire à remplacer par un vrai logo en relançant le script ou en remplaçant les PNG aux mêmes noms et tailles).
+- **Enregistrement** : en HTTPS ou `localhost` seulement, après l'événement `load`, erreurs ignorées (l'appli fonctionne sans service worker, par exemple en `file://`).
+- **Caches** (`SW_VERSION` en tête de `sw.js`) : `popmart-static-vN` (fichiers de l'appli) et `popmart-runtime-vN` (bibliothèques CDN, polices). **Incrémenter `SW_VERSION` quand la liste `CORE` ou `CDN` change** : l'activation supprime les anciens caches `popmart-*`. La liste `CDN` de `sw.js` doit rester identique aux `<script src="https:…">` de `index.html` et à `JSQR_URL`.
+- **Stratégies** :
+  - **Même origine** (`index.html`, `exchange.js`, `products.js`, manifeste, icônes) : **réseau d'abord** avec `cache: 'no-cache'` ; si le réseau échoue ou dépasse 4 s, copie en cache (les navigations utilisent la racine `./`). Un utilisateur en ligne a donc toujours la dernière version publiée (pas de « rechargez deux fois » dû au service worker) ; seules les réponses `ok` et `basic` remplacent la copie.
+  - **CDN et polices Google** (hébergeurs avec CORS : cdnjs, jsDelivr, fonts.googleapis.com, fonts.gstatic.com) : copie en cache servie tout de suite, **mise à jour en arrière-plan**. Pré-cachés à l'installation (un échec CDN n'empêche pas l'installation).
+  - **Jamais interceptés** : requêtes non GET, **API Supabase** (jetons, partages chiffrés), **images du catalogue** (`prod-server-r2.popmart.com`), toute autre origine.
+- **Limite connue (images du catalogue)** : ce serveur n'envoie pas d'en-tête CORS ; les mettre en cache donnerait des réponses « opaques » qui gonflent le quota de plusieurs Mo chacune. On s'appuie donc sur le cache HTTP du navigateur (`max-age` d'un an) : les images déjà vues restent souvent disponibles hors-ligne, les autres affichent un cadre neutre (`color: transparent`, fond de carte).
+- **Hors-ligne, ce qui marche** : ouverture de l'appli installée, catalogue et recherche, collection, quantités, figurines perso (IndexedDB), sauvegarde par fichier, QR catalogue `#c=`. **Ce qui ne marche pas, avec message clair** : Échanges (« Connexion indisponible »), notifications temps réel, partage chiffré (création et import `#s=`). Un bandeau « Hors ligne » (`#offline`, événements `online` / `offline`) s'affiche en haut du contenu.
+- **Invitation à installer** (`#install`, bannière en bas, mobile uniquement : `pointer: coarse`, jamais si déjà installée : `display-mode: standalone` / `navigator.standalone`) :
+  - **Android / Chrome** : `beforeinstallprompt` est intercepté, la bannière apparaît après ~3 s avec « Installer » (appelle `prompt()`) et « Plus tard » ; `appinstalled` la masque.
+  - **iOS / Safari** (pas d'API) : bannière avec la marche à suivre « Partager puis Sur l'écran d'accueil » et « Compris ».
+  - Un refus ou « Plus tard » est mémorisé **14 jours** (`localStorage['popmart-install-dismissed']`). Sur ordinateur, l'icône d'installation du navigateur reste disponible.
+- **Pièges** : le service worker ne s'active qu'après une première visite en ligne ; une première ouverture hors-ligne n'a rien en cache. Après modification du code, une visite en ligne suffit à récupérer la nouvelle version.
 
 ## Animations (GSAP)
 
@@ -130,9 +150,16 @@ Toutes passent par l'objet `fx` ; la logique métier ne doit jamais dépendre d'
 - [ ] Collection mixte (avec figurines perso) : Share crée un partage chiffré (QR minuscule, « Valable 24 h ») ; sur un autre appareil, scanner ou coller le lien -> Fusionner / Remplacer ; figurines, photos et quantités présentes.
 - [ ] Partage chiffré : « Arrêter le partage » invalide le lien ; un partage expiré ou un lien modifié donnent un message clair ; sans Supabase ou hors-ligne, repli sur le QR catalogue avec le message « figurine(s) perso non incluse(s) » ; une collection sans perso produit toujours le QR `#c=`.
 - [ ] `supabase/shares-tests.sql` n'affiche que « OK : tous les tests de partage sont passés ».
+- [ ] Après `supabase/cleanup.sql` : la requête de vérification montre la tâche `popmart-purge-shares` active ; après 30 minutes, `cron.job_run_details` montre une exécution `succeeded`.
 - [ ] Recherche sans résultat dans le catalogue : le bouton « Ajouter « … » » préremplit le nom.
 - [ ] Sauvegarde : « Exporter » télécharge un fichier ; « Importer » (collection vide) restaure images, quantités et figurines perso avec photos ; en fusion, rien n'est dupliqué en réimportant deux fois ; « Remplacer » demande confirmation.
 - [ ] Fichier invalide ou corrompu : message « Import impossible », aucune erreur console, collection intacte.
+- [ ] PWA (site publié, HTTPS) : DevTools > Application : manifeste valide sans avertissement, service worker « activated », les deux caches `popmart-*` remplis ; audit Lighthouse PWA sans erreur d'installabilité.
+- [ ] Mode avion après une première visite en ligne : l'appli s'ouvre, catalogue, recherche, collection et figurines perso fonctionnent, bandeau « Hors ligne » visible ; Échanges affiche « Connexion indisponible » sans erreur console.
+- [ ] Android / Chrome : la bannière « Installer Pop Mart » apparaît (~3 s), « Installer » ajoute l'icône, l'appli s'ouvre en plein écran, la bannière ne revient pas ; « Plus tard » la masque 14 jours.
+- [ ] iPhone / Safari : la bannière d'instructions s'affiche une fois ; une fois installée (mode standalone), plus de bannière.
+- [ ] Après un nouveau push, une visite en ligne charge la nouvelle version (réseau d'abord), sans vider le cache.
+- [ ] 360 px : bannière d'installation et bandeau hors-ligne sans défilement horizontal, sans masquer les boutons importants.
 - [ ] Sans Supabase configuré : aucune erreur console, cloche et « Proposer » masqués, onglet Échanges avec message clair.
 - [ ] Avec Supabase (2 navigateurs) : A publie une figurine de sa collection (même avec qty = 1), B voit l'annonce, la tague (ruban + contact de A), A reçoit la notification en temps réel avec le contact de B ; B retire le tag : la notification disparaît ; B retrouve son tag après rechargement.
 - [ ] Cloche : marquer lu, tout marquer lu, supprimer, tout supprimer ; pastille correcte.
