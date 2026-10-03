@@ -29,9 +29,9 @@
   .tabs { display:flex; gap:8px; margin-top:12px; }
   .tab { flex:1; min-height:44px; padding:0 12px; border:1.5px solid var(--border); border-radius:999px; background:var(--card); color:var(--text); font-size:.95rem; font-weight:500; transition:background .25s, color .25s, border-color .25s; }
   .tab.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
-  .meta-row { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin:12px 0 2px; }
+  .meta-row { display:flex; flex-direction:column; align-items:flex-start; gap:8px; margin:12px 0 2px; }
   #count { color:var(--muted); font-size:.85rem; }
-  .tools { display:flex; gap:8px; }
+  .tools { display:flex; flex-wrap:wrap; gap:8px; }
   .tools[hidden] { display:none; }
   .tools button { min-height:44px; padding:0 14px; border:1.5px solid var(--border); border-radius:999px; background:var(--card); color:var(--text); font-size:.9rem; }
 
@@ -77,7 +77,7 @@
   .box h2 { margin:0; font-family:'Bricolage Grotesque',sans-serif; font-size:1.25rem; }
   .box p { margin:0; color:var(--muted); font-size:.9rem; line-height:1.4; }
   .box p.warn { color:var(--text); font-weight:700; }
-  #qr { background:#fff; padding:12px; border-radius:14px; align-self:center; width:min(100%,320px); }
+  #qr { background:#fff; padding:12px; border-radius:14px; align-self:center; width:min(100%,380px); }
   #qr svg { display:block; width:100%; height:auto; }
   .box video { width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:#000; }
   .btns { display:flex; flex-wrap:wrap; gap:8px; }
@@ -178,7 +178,6 @@
 <main class="wrap">
   <div id="catalog">
     <div class="meta-row">
-      <div id="count"></div>
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
@@ -186,6 +185,7 @@
         <button id="colBackup" class="icon" aria-label="Sauvegarde de la collection" title="Sauvegarde de la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
         <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
+      <div id="count"></div>
     </div>
     <div id="exBar" hidden>
       <div class="pills" id="exScope"></div>
@@ -904,7 +904,7 @@
 
   // ---- Partage : lien `#c=<charge utile>` (id produit + indices d'images, jamais d'URL d'image) ----
   const BASE_URL = 'https://hebus.github.io/popmart-gallery/';
-  const JSQR_URL = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js';
+  const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
   const MAX_PAYLOAD = 200000;
   const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -1097,39 +1097,46 @@
   async function openScanner() {
     const video = mk('video');
     video.setAttribute('playsinline', ''); video.muted = true;
-    const msg = mk('p', '', "Visez le QR code d'une collection.");
+    const msg = mk('p', '', "Visez le QR code d'une collection. Si la lecture échoue : rapprochez-vous, agrandissez le QR code, ou collez le lien ci-dessous.");
+    const link = mk('input');
+    link.type = 'text'; link.inputMode = 'url'; link.autocomplete = 'off'; link.placeholder = 'https://…/#c=…';
+    const go = () => { const v = link.value.trim(); if (v) { stopScan(); importFromText(v); } };
+    link.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     const btns = mk('div', 'btns');
-    btns.append(mkBtn('Fermer', '', closeSheet));
-    showSheet(mk('h2', '', 'Scanner une collection'), video, msg, btns);
+    btns.append(mkBtn('Importer le lien', 'primary', go), mkBtn('Fermer', '', closeSheet));
+    showSheet(mk('h2', '', 'Scanner une collection'), video, msg, field('Ou collez le lien de partage', link), btns);
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     } catch {
-      msg.textContent = "Caméra indisponible ou refusée. Vous pouvez scanner le QR avec l'appareil photo du téléphone.";
+      msg.textContent = "Caméra indisponible ou refusée. Collez le lien de partage ci-dessous, ou scannez le QR avec l'appareil photo du téléphone.";
       return;
     }
     if (!$('sheet').open || $('sheetBox').firstChild.textContent !== 'Scanner une collection') { stream.getTracks().forEach((tr) => tr.stop()); return; }
     scanStream = stream;
     video.srcObject = stream;
     await video.play().catch(() => {});
+    // BarcodeDetector existe dans certains navigateurs sans savoir lire les QR (ex. Chrome sur Windows) : on vérifie les formats
+    let native = false;
+    if ('BarcodeDetector' in window) { try { native = (await BarcodeDetector.getSupportedFormats()).includes('qr_code'); } catch {} }
     let detect;
-    if ('BarcodeDetector' in window) {
+    if (native) {
       const det = new BarcodeDetector({ formats: ['qr_code'] });
       detect = async () => (await det.detect(video))[0]?.rawValue;
     } else {
-      try { await loadScript(JSQR_URL); } catch { msg.textContent = 'Scanner indisponible (hors ligne ?).'; return; }
+      try { await loadScript(JSQR_URL); } catch { msg.textContent = 'Décodeur de QR code indisponible (hors ligne ?). Collez le lien de partage ci-dessous.'; return; }
       const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
       detect = async () => {
-        const k = Math.min(1, 640 / video.videoWidth);
+        const k = Math.min(1, 1280 / video.videoWidth);
         canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        return window.jsQR(d.data, d.width, d.height)?.data;
+        return window.jsQR(d.data, d.width, d.height, { inversionAttempts: 'dontInvert' })?.data;
       };
     }
     const tick = async () => {
       if (scanStream !== stream) return;
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && video.videoWidth) {
         let text;
         try { text = await detect(); } catch {}
         if (scanStream !== stream) return;
