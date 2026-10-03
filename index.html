@@ -88,7 +88,11 @@
   .tools button:disabled { opacity:.45; cursor:not-allowed; }
 
   .bar-r { display:flex; align-items:center; gap:8px; }
-  .preview { width:min(100%,240px); aspect-ratio:1; align-self:center; border-radius:16px; background:var(--border); color:var(--muted); font-size:.85rem; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
+  .preview { position:relative; width:min(100%,240px); aspect-ratio:1; align-self:center; border:0; padding:0; border-radius:16px; background:var(--border); color:var(--muted); font-size:.85rem; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; cursor:pointer; }
+  .preview .ph { display:flex; flex-direction:column; gap:6px; padding:12px; }
+  .preview .ph b { color:var(--text); font-size:1rem; }
+  .cambadge { position:absolute; right:8px; bottom:8px; width:44px; height:44px; border-radius:50%; background:var(--accent); color:var(--on-accent); display:flex; align-items:center; justify-content:center; pointer-events:none; }
+  .cambadge svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .preview img { width:100%; height:100%; object-fit:cover; display:block; }
   .pic.missing::after { content:'Photo introuvable'; display:flex; align-items:center; justify-content:center; aspect-ratio:1; color:var(--muted); font-size:.8rem; }
   .tools .icon { width:44px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
@@ -179,6 +183,7 @@
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
         <button id="colScan" class="icon" aria-label="Scanner un QR code" title="Scanner un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
+        <button id="colBackup" class="icon" aria-label="Sauvegarde de la collection" title="Sauvegarde de la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
         <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
     </div>
@@ -232,11 +237,14 @@
       urls.delete(key);
       if (u) u.then((url) => url && setTimeout(() => URL.revokeObjectURL(url), delay));
     };
+    const read = (key) => tx('readonly', (st) => st.get(key))
+      .then((r) => (r instanceof Blob ? r : r ? new Blob([r.data], { type: r.type }) : null)).catch(() => null);
     return {
       async put(key, blob) { const data = await blob.arrayBuffer(); await tx('readwrite', (st) => st.put({ type: blob.type, data }, key)); revoke(key); },
+      get(src) { return read(src.slice(6)); },
       url(src) {
         const key = src.slice(6);
-        if (!urls.has(key)) urls.set(key, tx('readonly', (st) => st.get(key)).then((r) => { const b = r instanceof Blob ? r : r ? new Blob([r.data], { type: r.type }) : null; return b ? URL.createObjectURL(b) : null; }).catch(() => null));
+        if (!urls.has(key)) urls.set(key, read(key).then((b) => (b ? URL.createObjectURL(b) : null)));
         return urls.get(key);
       },
       async delete(src) { const key = src.slice(6); revoke(key, 1000); await tx('readwrite', (st) => st.delete(key)).catch(() => {}); },
@@ -401,7 +409,7 @@
     return el;
   }
 
-  // Carte d'une image de la collection : quantité (doublons), annonce, retrait
+  // Carte d'une image de la collection : quantité, annonce, retrait
   function colCard(c) {
     const el = mk('article', 'card');
     el.dataset.src = c.src;
@@ -450,7 +458,7 @@
     listed.hidden = !l;
     if (l) listed.textContent = `En annonce · ${kindLabel(l)} ×${l.qty}`;
     const prop = el.querySelector('.proposer');
-    prop.hidden = !Exchange.configured || (c.qty < 2 && !l);
+    prop.hidden = !Exchange.configured;
     prop.textContent = l ? "Modifier l'annonce" : 'Proposer';
   }
 
@@ -472,11 +480,11 @@
     reconcileListing(c, false);
   }
 
-  // Une annonce ne peut jamais proposer plus que (quantité - 1) exemplaires
+  // Une annonce ne peut jamais proposer plus d'exemplaires que la quantité possédée
   async function reconcileListing(c, removed) {
     const key = listingKey(c), l = key && myListings.get(key);
     if (!l) return;
-    const max = removed ? 0 : c.qty - 1;
+    const max = removed ? 0 : c.qty;
     try {
       if (max < 1) { await Exchange.removeListing(l.id); myListings.delete(key); }
       else if (l.qty > max) myListings.set(key, await Exchange.publish({ product_id: l.product_id, image_index: l.image_index, kind: l.kind, price: l.price, qty: max, note: l.note }));
@@ -514,7 +522,7 @@
     e.hidden = !empty;
     if (!empty) return;
     if (view === 'ex') {
-      const hint = exScope === 'mine' ? "Vous n'avez publié aucune annonce. Proposez un doublon depuis l'onglet Collection."
+      const hint = exScope === 'mine' ? "Vous n'avez publié aucune annonce. Proposez une figurine depuis l'onglet Collection."
         : exScope === 'interested' ? "Vous n'avez marqué aucun intérêt." : 'Aucune annonce pour le moment.';
       setEmpty(exError ? 'Échanges indisponibles' : 'Aucune annonce', exError ?? hint);
     } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +, ou ajoutez votre propre figurine.', addAction());
@@ -633,20 +641,6 @@
     fx.zoomIn();
   }
 
-  function exportJson() {
-    const items = collection.map((c) => {
-      if (c.custom) return { custom: true, productName: c.name, note: c.note || undefined, quantity: c.qty };
-      const p = byId.get(c.id);
-      return { image: c.src, quantity: c.qty, productId: c.id, productName: c.name, productUrl: p?.url, price: p?.price, currency: p?.currency };
-    });
-    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: items.length, items }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `popmart-collection-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
   // ---- Figurines perso (photo appareil / galerie, nom) : stockées uniquement sur l'appareil ----
   const MAX_CUSTOM = 200;
   const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -689,8 +683,17 @@
   function openFigureSheet(existing, presetName = '') {
     if (!existing && collection.filter((c) => c.custom).length >= MAX_CUSTOM) return notice('Limite atteinte', `Vous ne pouvez pas ajouter plus de ${MAX_CUSTOM} figurines perso.`);
     let blob = null, busy = false, previewUrl = null;
-    const preview = mk('div', 'preview');
-    if (existing) preview.append(img(existing.src, existing.name)); else preview.textContent = 'Aucune photo';
+    const preview = mk('button', 'preview');
+    preview.type = 'button';
+    preview.setAttribute('aria-label', 'Prendre une photo');
+    const showPreview = (node) => {
+      const badge = mk('span', 'cambadge');
+      badge.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON_CAMERA}</svg>`;
+      preview.replaceChildren(node, badge);
+    };
+    if (existing) showPreview(img(existing.src, existing.name));
+    else { const ph = mk('span', 'ph'); ph.append(mk('b', '', 'Aucune photo'), mk('span', '', 'Touchez pour prendre une photo')); showPreview(ph); }
+    preview.onclick = () => cam.click();
     const err = mk('p', 'warn'); err.hidden = true;
     const name = mk('input'); name.maxLength = 80; name.value = existing?.name ?? presetName; name.placeholder = 'Ex. Molly édition limitée';
     const note = mk('input'); note.maxLength = 140; note.value = existing?.note ?? ''; note.placeholder = 'Série, état, où vous l\'avez trouvée… (optionnel)';
@@ -710,7 +713,7 @@
         if (previewUrl) URL.revokeObjectURL(previewUrl);
         previewUrl = URL.createObjectURL(blob);
         const i = new Image(); i.alt = 'Aperçu'; i.src = previewUrl;
-        preview.replaceChildren(i);
+        showPreview(i);
       } catch (e) { err.textContent = e.message || 'Impossible de lire cette photo.'; err.hidden = false; }
       busy = false; update();
     };
@@ -739,7 +742,7 @@
       }
     }
     const photoBtns = mk('div', 'btns');
-    photoBtns.append(iconBtn('Photo', ICON_CAMERA, '', () => cam.click()), iconBtn('Galerie', ICON_GALLERY, '', () => gal.click()));
+    photoBtns.append(iconBtn('Galerie', ICON_GALLERY, '', () => gal.click()));
     const btns = mk('div', 'btns');
     btns.append(save, mkBtn('Annuler', '', closeSheet));
     update();
@@ -757,6 +760,146 @@
     if (!confirm(`Supprimer « ${c.name} » et sa photo ?`)) return;
     toggle(c);
     photoStore.delete(c.src);
+  }
+
+  // ---- Sauvegarde / restauration par fichier (images du catalogue, quantités et figurines perso AVEC photos) ----
+  // Format v1 : { app, version: 1, exportedAt, count, items: [ {type:'catalog', productId, imageIndex, image, quantity, …}
+  //                                                           | {type:'custom', customId, name, note?, quantity, photo: 'data:image/jpeg;base64,…'} ] }
+  const BACKUP_APP = 'popmart-gallery';
+  const CUSTOM_ID_RE = /^[0-9a-z-]{8,64}$/i;
+  const PHOTO_URL_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  const ICON_DOWNLOAD = '<path d="M12 3v12M7 10l5 5 5-5M4 21h16"/>';
+  const ICON_UPLOAD = '<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>';
+  const fileToDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+
+  async function exportBackup() {
+    const items = [];
+    let missing = 0;
+    for (const c of collection) {
+      if (c.custom) {
+        const blob = await photoStore.get(c.src);
+        if (!blob) { missing++; continue; }
+        items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, photo: await fileToDataUrl(blob) });
+      } else {
+        const p = byId.get(c.id);
+        items.push({ type: 'catalog', productId: c.id, imageIndex: p ? p.images.indexOf(c.src) : -1, image: c.src, productName: c.name,
+          productUrl: p?.url, price: p?.price, currency: p?.currency, quantity: c.qty });
+      }
+    }
+    const json = JSON.stringify({ app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items }, null, 1);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.download = `popmart-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    return { count: items.length, missing };
+  }
+
+  // Le fichier est une donnée non fiable : tout est validé, les photos sont ré-encodées au moment de l'import
+  async function readBackup(file) {
+    if (file.size > 100 * 1024 * 1024) throw new Error('Fichier trop volumineux (100 Mo maximum).');
+    let data;
+    try { data = JSON.parse(await file.text()); } catch { throw new Error("Ce fichier n'est pas une sauvegarde valide."); }
+    if (!Array.isArray(data?.items) || (data.app === BACKUP_APP && data.version !== 1) || (data.app !== BACKUP_APP && data.app !== undefined)) throw new Error("Ce fichier n'est pas une sauvegarde Pop Mart reconnue.");
+    if (data.items.length > 2500) throw new Error('Sauvegarde trop volumineuse.');
+    const catalog = [], custom = [], seen = new Set();
+    let ignored = 0;
+    for (const it of data.items) {
+      if (!it || typeof it !== 'object') { ignored++; continue; }
+      const qty = Number.isInteger(it.quantity) && it.quantity >= 1 ? Math.min(it.quantity, 99) : 1;
+      if (it.type === 'custom') {
+        const ok = typeof it.name === 'string' && it.name.trim() && typeof it.photo === 'string' && it.photo.length <= 6000000 && PHOTO_URL_RE.test(it.photo);
+        if (!ok) { ignored++; continue; }
+        const cid = typeof it.customId === 'string' && CUSTOM_ID_RE.test(it.customId) ? it.customId : newId();
+        if (seen.has(cid)) continue;
+        seen.add(cid);
+        custom.push({ customId: cid, name: it.name.trim().slice(0, 80), note: typeof it.note === 'string' ? it.note.trim().slice(0, 140) || undefined : undefined, qty, photo: it.photo });
+      } else {
+        const p = typeof it.productId === 'string' && ID_RE.test(it.productId) ? byId.get(it.productId) : null;
+        const src = !p ? null : typeof it.image === 'string' && p.images.includes(it.image) ? it.image : Number.isInteger(it.imageIndex) ? p.images[it.imageIndex] : null;
+        if (!src) { ignored++; continue; }
+        if (seen.has(src)) continue;
+        seen.add(src);
+        catalog.push({ src, id: p.id, name: p.name, qty });
+      }
+    }
+    return { catalog, custom, ignored };
+  }
+
+  async function applyBackup(b, mode) {
+    const status = mk('p', '', 'Préparation…');
+    showSheet(mk('h2', '', 'Import en cours…'), status);
+    let failed = 0;
+    const room = Math.max(0, MAX_CUSTOM - (mode === 'merge' ? collection.filter((c) => c.custom).length : 0));
+    const todo = b.custom.filter((c) => mode === 'replace' || !inCol(`local:${c.customId}`));
+    failed += Math.max(0, todo.length - room);
+    const ready = [];
+    for (const [i, c] of todo.slice(0, room).entries()) {
+      status.textContent = `Photos : ${i + 1}/${Math.min(todo.length, room)}`;
+      try { ready.push({ c, blob: await processPhoto(await (await fetch(c.photo)).blob()) }); } catch { failed++; }
+    }
+    const custom = [];
+    for (const { c, blob } of ready) {
+      try { await photoStore.put(c.customId, blob); custom.push({ src: `local:${c.customId}`, id: `local:${c.customId}`, name: c.name, note: c.note, qty: c.qty, custom: true }); }
+      catch { failed++; }
+    }
+    const old = collection;
+    const fresh = b.catalog.filter((c) => mode === 'replace' || !inCol(c.src));
+    collection = mode === 'replace' ? [...fresh, ...custom] : [...collection, ...fresh, ...custom];
+    if (mode === 'replace') for (const c of old) if (c.custom && !collection.some((n) => n.src === c.src)) photoStore.delete(c.src);
+    navigator.storage?.persist?.().catch(() => {});
+    persist();
+    closeSheet();
+    if (view === 'mine') render(); else setView('mine');
+    fx.bump(false);
+    const skipped = b.ignored + failed;
+    if (skipped) notice('Import terminé', `${fresh.length + custom.length} élément(s) importé(s). ${skipped} ignoré(s) (produit inconnu, photo illisible ou limite atteinte).`);
+  }
+
+  function askBackup(b) {
+    const total = b.catalog.length + b.custom.length;
+    if (!total) return notice('Sauvegarde vide', 'Aucun élément reconnu dans ce fichier.');
+    const info = `${b.catalog.length} image(s) du catalogue · ${b.custom.length} figurine(s) perso` + (b.ignored ? ` · ${b.ignored} ignoré(s)` : '');
+    if (!collection.length) return applyBackup(b, 'replace');
+    const btns = mk('div', 'btns');
+    btns.append(
+      mkBtn('Fusionner', 'primary', () => applyBackup(b, 'merge')),
+      mkBtn('Remplacer', '', () => { if (confirm(`Remplacer toute votre collection (${collection.length} élément(s)) par cette sauvegarde ?`)) applyBackup(b, 'replace'); }),
+      mkBtn('Annuler', '', closeSheet),
+    );
+    showSheet(mk('h2', '', 'Sauvegarde reçue'), mk('p', '', info), mk('p', '', `Votre collection contient déjà ${collection.length} élément(s). Fusionner conserve vos quantités actuelles.`), btns);
+  }
+
+  function openBackup() {
+    const status = mk('p', '');
+    const file = mk('input');
+    file.type = 'file'; file.accept = '.json,application/json'; file.hidden = true;
+    file.onchange = async () => {
+      const f = file.files[0];
+      file.value = '';
+      if (!f) return;
+      status.textContent = 'Lecture du fichier…';
+      try { askBackup(await readBackup(f)); } catch (e) { notice('Import impossible', e.message || 'Fichier illisible.'); }
+    };
+    const exp = iconBtn('Exporter', ICON_DOWNLOAD, 'primary', async () => {
+      exp.disabled = true; status.textContent = 'Préparation du fichier…';
+      try {
+        const { count, missing } = await exportBackup();
+        status.textContent = `Fichier téléchargé (${count} élément(s)).` + (missing ? ` ${missing} photo(s) introuvable(s) ignorée(s).` : '');
+      } catch (e) { status.textContent = `Export impossible (${e?.name || 'erreur'}).`; }
+      exp.disabled = false;
+    });
+    const btns = mk('div', 'btns');
+    btns.append(exp, iconBtn('Importer', ICON_UPLOAD, '', () => file.click()), mkBtn('Fermer', '', closeSheet));
+    const nCustom = collection.filter((c) => c.custom).length;
+    showSheet(
+      mk('h2', '', 'Sauvegarde de la collection'),
+      mk('p', '', 'Un seul fichier avec vos images, vos quantités et vos figurines perso (photos incluses). Importez-le sur un autre appareil ou après avoir vidé les données du navigateur.'),
+      mk('p', '', nCustom ? `${collection.length} élément(s), dont ${nCustom} figurine(s) perso avec photo.` : `${collection.length} élément(s).`),
+      btns, file, status,
+    );
   }
 
   // ---- Partage : lien `#c=<charge utile>` (id produit + indices d'images, jamais d'URL d'image) ----
@@ -880,7 +1023,7 @@
     const btns = mk('div', 'btns');
     const nodes = [mk('h2', '', 'Partager ma collection'), mk('p', '', `${images} image(s) · ${np} produit(s)`)];
     const nCustom = collection.filter((c) => c.custom).length;
-    if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) : leurs photos restent sur cet appareil (le fichier JSON n'inclut pas non plus les photos).`));
+    if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) : leurs photos restent sur cet appareil. La sauvegarde par fichier, elle, les inclut.`));
     let qrOk = false;
     if (window.qrcode && images) {
       try {
@@ -894,7 +1037,7 @@
         qrOk = true;
       } catch {}
     }
-    if (!qrOk) nodes.push(mk('p', 'warn', window.qrcode ? `Collection trop grande pour un QR code (${np} produits). Utilisez le fichier JSON.` : 'Générateur de QR code indisponible (hors ligne ?). Utilisez le fichier JSON.'));
+    if (!qrOk) nodes.push(mk('p', 'warn', window.qrcode ? `Collection trop grande pour un QR code (${np} produits). Utilisez la sauvegarde par fichier.` : 'Générateur de QR code indisponible (hors ligne ?). Utilisez la sauvegarde par fichier.'));
     if (qrOk && link.length > 1100) nodes.push(mk('p', '', "QR code très dense : si le scan échoue, augmentez la luminosité de l'écran ou utilisez « Copier le lien »."));
     if (qrOk) {
       const copy = mkBtn('Copier le lien', 'primary', async () => {
@@ -904,7 +1047,7 @@
       btns.append(copy);
       if (navigator.share) btns.append(mkBtn('Partager…', '', () => navigator.share({ title: 'Ma collection Pop Mart', url: link }).catch(() => {})));
     }
-    btns.append(mkBtn('Télécharger JSON', '', exportJson), mkBtn('Fermer', '', closeSheet));
+    btns.append(mkBtn('Sauvegarde par fichier', '', openBackup), mkBtn('Fermer', '', closeSheet));
     showSheet(...nodes, btns);
   }
 
@@ -1177,14 +1320,14 @@
     });
   }
 
-  // ---- Proposer un doublon (annonce) ----
+  // ---- Proposer une figurine à l'échange ou en vente (annonce) ----
   async function openListingSheet(c, existing) {
     if (!c || !(await requireProfile())) return;
     const p = byId.get(c.id), index = p ? p.images.indexOf(c.src) : -1;
     if (index < 0) return notice('Annonce impossible', 'Cette image ne fait plus partie du catalogue.');
     existing ??= myListings.get(`${c.id}:${index}`);
     let kind = existing?.kind ?? 'exchange';
-    const max = Math.max(1, c.qty - 1);
+    const max = c.qty;
     const qty = mk('select');
     for (let i = 1; i <= max; i++) qty.append(new Option(String(i), String(i)));
     qty.value = String(Math.min(existing?.qty ?? 1, max));
@@ -1219,7 +1362,7 @@
     btns.append(mkBtn('Annuler', '', closeSheet));
     showSheet(
       mk('h2', '', 'Proposer à l\'échange ou en vente'),
-      mk('p', '', `${p.name} · vous en avez ${c.qty}, vous pouvez en proposer jusqu'à ${max}.`),
+      mk('p', '', `${p.name} · vous en avez ${c.qty} dans votre collection, vous pouvez en proposer jusqu'à ${max}.`),
       kinds, priceField, field("Nombre d'exemplaires proposés", qty), field('Message (optionnel)', note), err, btns,
     );
   }
@@ -1307,6 +1450,7 @@
   $('pill').onclick = () => setView('mine');
   $('profileBtn').onclick = () => askProfile();
   $('colAdd').onclick = () => openFigureSheet();
+  $('colBackup').onclick = openBackup;
   $('colShare').onclick = openShare;
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
