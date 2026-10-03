@@ -91,6 +91,8 @@
   .preview { width:min(100%,240px); aspect-ratio:1; align-self:center; border-radius:16px; background:var(--border); color:var(--muted); font-size:.85rem; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
   .preview img { width:100%; height:100%; object-fit:cover; display:block; }
   .pic.missing::after { content:'Photo introuvable'; display:flex; align-items:center; justify-content:center; aspect-ratio:1; color:var(--muted); font-size:.8rem; }
+  .tools .icon { width:44px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
+  .tools .ico-svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tools .primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
   #empty .btn { flex:none; margin-top:16px; padding:0 20px; }
   .listed { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
@@ -176,8 +178,8 @@
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
-        <button id="colScan">Scanner</button>
-        <button id="colClear">Vider</button>
+        <button id="colScan" class="icon" aria-label="Scanner un QR code" title="Scanner un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
+        <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
     </div>
     <div id="exBar" hidden>
@@ -231,10 +233,10 @@
       if (u) u.then((url) => url && setTimeout(() => URL.revokeObjectURL(url), delay));
     };
     return {
-      async put(key, blob) { await tx('readwrite', (st) => st.put(blob, key)); revoke(key); },
+      async put(key, blob) { const data = await blob.arrayBuffer(); await tx('readwrite', (st) => st.put({ type: blob.type, data }, key)); revoke(key); },
       url(src) {
         const key = src.slice(6);
-        if (!urls.has(key)) urls.set(key, tx('readonly', (st) => st.get(key)).then((b) => (b ? URL.createObjectURL(b) : null)).catch(() => null));
+        if (!urls.has(key)) urls.set(key, tx('readonly', (st) => st.get(key)).then((r) => { const b = r instanceof Blob ? r : r ? new Blob([r.data], { type: r.type }) : null; return b ? URL.createObjectURL(b) : null; }).catch(() => null));
         return urls.get(key);
       },
       async delete(src) { const key = src.slice(6); revoke(key, 1000); await tx('readwrite', (st) => st.delete(key)).catch(() => {}); },
@@ -676,6 +678,13 @@
     return blob;
   }
 
+  function storageError(e) {
+    const detail = `${e?.name || 'Erreur'}${e?.message ? ': ' + e.message : ''}`;
+    if (e?.name === 'QuotaExceededError') return `Stockage de l'appareil plein : libérez de l'espace puis réessayez. (${detail})`;
+    if (/IndexedDB|SecurityError|InvalidStateError|UnknownError|mutation/i.test(detail)) return `Le navigateur bloque le stockage des photos (navigation privée ou stockage désactivé pour ce site ?). (${detail})`;
+    return `Impossible d'enregistrer la photo. (${detail})`;
+  }
+
   // existing : figurine à modifier ; presetName : nom prérempli (ex. depuis une recherche sans résultat)
   function openFigureSheet(existing, presetName = '') {
     if (!existing && collection.filter((c) => c.custom).length >= MAX_CUSTOM) return notice('Limite atteinte', `Vous ne pouvez pas ajouter plus de ${MAX_CUSTOM} figurines perso.`);
@@ -711,9 +720,11 @@
     async function onSave() {
       const label = name.value.trim(), n = Math.min(99, Math.max(1, Math.floor(Number(qty.value)) || 1));
       busy = true; update(); err.hidden = true;
+      const fail = (m) => { err.textContent = m; err.hidden = false; busy = false; update(); };
+      const id = existing ? existing.src.slice(6) : newId();
+      try { if (blob) await photoStore.put(id, blob); }
+      catch (e) { console.error('photoStore.put', e); return fail(storageError(e)); }
       try {
-        const id = existing ? existing.src.slice(6) : newId();
-        if (blob) await photoStore.put(id, blob);
         if (existing) Object.assign(existing, { name: label, note: note.value.trim() || undefined, qty: n });
         else collection = [...collection, { src: `local:${id}`, id: `local:${id}`, name: label, note: note.value.trim() || undefined, qty: n, custom: true }];
         navigator.storage?.persist?.().catch(() => {});
@@ -722,9 +733,9 @@
         if (view !== 'mine') setView('mine');
         else { const words = norm($('q').value).split(/\s+/).filter(Boolean); if (!words.every((w) => norm(label).includes(w))) $('q').value = ''; render(); }
         fx.bump(false);
-      } catch {
-        err.textContent = "Impossible d'enregistrer la photo sur cet appareil (stockage plein ou navigation privée ?).";
-        err.hidden = false; busy = false; update();
+      } catch (e) {
+        console.error(e);
+        fail(`Erreur inattendue (${e?.name}: ${e?.message})`);
       }
     }
     const photoBtns = mk('div', 'btns');
