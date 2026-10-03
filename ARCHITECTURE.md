@@ -51,7 +51,7 @@ L'en-tête (titre, pastille de compteur, recherche, onglets) est sticky et visib
 4. **Échanges** (onglet) : annonces des doublons des utilisateurs, voir « Échanges, intérêts et notifications ».
 5. **Zoom** : `<dialog>` plein écran affichant l'image ; se ferme avec ✕, un clic hors de l'image ou Échap.
 
-La pastille de l'en-tête affiche toujours le nombre d'images de la collection et se met à jour immédiatement.
+La pastille de l'en-tête (un `<button>`, à droite de la cloche) affiche toujours le nombre d'images de la collection et se met à jour immédiatement ; **un clic dessus ouvre l'onglet « Collection »**, comme le bouton d'onglet (y compris depuis le détail d'un produit ou l'onglet Échanges).
 
 ## Partage de la collection (Share / Scanner / Import)
 
