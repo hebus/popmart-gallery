@@ -86,9 +86,9 @@
   .tools button:disabled { opacity:.45; cursor:not-allowed; }
 
   .bar-r { display:flex; align-items:center; gap:8px; }
-  #bell { position:relative; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; padding:0; }
-  #bell[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
-  #bell svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .iconbtn { position:relative; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; padding:0; }
+  .iconbtn[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
+  .iconbtn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   #bellBadge { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#d93025; color:#fff; font-size:.7rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
   .tab { padding:0 8px; font-size:.9rem; }
   .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
@@ -140,7 +140,10 @@
     <div class="bar">
       <h1>Pop Mart</h1>
       <div class="bar-r">
-        <button id="bell" aria-label="Notifications" hidden>
+        <button id="profileBtn" class="iconbtn" aria-label="Mon profil" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>
+        </button>
+        <button id="bell" class="iconbtn" aria-label="Notifications" hidden>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
           <span id="bellBadge" hidden>0</span>
         </button>
@@ -827,7 +830,6 @@
     const scopes = [['all', 'Toutes'], ['mine', 'Mes annonces'], ['interested', 'Mes intérêts']];
     $('exScope').replaceChildren(
       ...scopes.map(([k, l]) => pillBtn(l, exScope === k, () => { exScope = k; drawExBar(); loadEx(true); })),
-      pillBtn('Profil', false, () => askProfile()),
     );
     const kinds = [['', 'Tous'], ['exchange', 'Échange'], ['sale', 'Vente']];
     $('exKind').replaceChildren(...kinds.map(([k, l]) => pillBtn(l, exKind === k, () => { exKind = k; drawExBar(); loadEx(true); })));
@@ -1097,6 +1099,7 @@
   async function initExchange() {
     if (!Exchange.configured) return;
     $('bell').hidden = false;
+    $('profileBtn').hidden = false;
     try {
       if (!await Exchange.loadMe()) return;
       unsubscribe?.();
@@ -1112,6 +1115,7 @@
   $('tabMine').onclick = () => setView('mine');
   $('tabEx').onclick = () => setView('ex');
   $('bell').onclick = openNotifications;
+  $('profileBtn').onclick = () => askProfile();
   $('colShare').onclick = openShare;
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
