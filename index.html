@@ -364,9 +364,9 @@
   const persist = () => {
     try { localStorage.setItem(KEY, JSON.stringify(collection)); } catch {}
     $('pillCount').textContent = collection.length;
-    const shareable = collection.some((c) => !c.custom);
+    const shareable = collection.some((c) => !c.custom) || (Exchange.configured && collection.length > 0);
     $('colShare').disabled = !shareable;
-    $('colShare').title = !shareable && collection.length ? 'Seules les figurines du catalogue peuvent être partagées par QR code.' : '';
+    $('colShare').title = !shareable && collection.length ? 'Le partage des figurines perso nécessite le partage en ligne (indisponible).' : '';
   };
 
   // ---- Affichage ----
@@ -646,7 +646,7 @@
   const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
   // Réduit à 1024 px et ré-encode en JPEG : supprime aussi les métadonnées EXIF (dont la localisation GPS)
-  async function processPhoto(file) {
+  async function processPhoto(file, maxSide = 1024, quality = 0.82) {
     if (file.type && !file.type.startsWith('image/')) throw new Error("Ce fichier n'est pas une image.");
     if (file.size > 25 * 1024 * 1024) throw new Error('Image trop volumineuse (25 Mo maximum).');
     let bmp;
@@ -660,14 +660,14 @@
       }).catch(() => { throw new Error("Format d'image non supporté par ce navigateur (essayez en JPEG ou PNG)."); });
     }
     const w = bmp.width ?? bmp.naturalWidth, h = bmp.height ?? bmp.naturalHeight;
-    const k = Math.min(1, 1024 / Math.max(w, h));
+    const k = Math.min(1, maxSide / Math.max(w, h));
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
     bmp.close?.();
-    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.82));
+    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', quality));
     if (!blob) throw new Error('Impossible de traiter cette image.');
     return blob;
   }
@@ -772,13 +772,17 @@
   const ICON_UPLOAD = '<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>';
   const fileToDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 
-  async function exportBackup() {
+  // shrink : photos ré-encodées à 640 px / qualité 0,7 (partage en ligne) ; onProgress(i, n) pour les figurines perso
+  async function buildBackup({ shrink = false, onProgress } = {}) {
     const items = [];
-    let missing = 0;
+    const total = collection.filter((c) => c.custom).length;
+    let missing = 0, done = 0;
     for (const c of collection) {
       if (c.custom) {
-        const blob = await photoStore.get(c.src);
+        let blob = await photoStore.get(c.src);
         if (!blob) { missing++; continue; }
+        if (shrink) blob = await processPhoto(blob, 640, 0.7);
+        onProgress?.(++done, total);
         items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, photo: await fileToDataUrl(blob) });
       } else {
         const p = byId.get(c.id);
@@ -786,22 +790,30 @@
           productUrl: p?.url, price: p?.price, currency: p?.currency, quantity: c.qty });
       }
     }
-    const json = JSON.stringify({ app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items }, null, 1);
+    return { backup: { app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items }, missing };
+  }
+
+  async function exportBackup() {
+    const { backup, missing } = await buildBackup();
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 1)], { type: 'application/json' }));
     a.download = `popmart-sauvegarde-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.append(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    return { count: items.length, missing };
+    return { count: backup.count, missing };
   }
 
-  // Le fichier est une donnée non fiable : tout est validé, les photos sont ré-encodées au moment de l'import
   async function readBackup(file) {
     if (file.size > 100 * 1024 * 1024) throw new Error('Fichier trop volumineux (100 Mo maximum).');
+    return parseBackupText(await file.text());
+  }
+
+  // Le contenu est une donnée non fiable (fichier ou partage) : tout est validé, les photos sont ré-encodées à l'import
+  function parseBackupText(text) {
     let data;
-    try { data = JSON.parse(await file.text()); } catch { throw new Error("Ce fichier n'est pas une sauvegarde valide."); }
+    try { data = JSON.parse(text); } catch { throw new Error("Ce fichier n'est pas une sauvegarde valide."); }
     if (!Array.isArray(data?.items) || (data.app === BACKUP_APP && data.version !== 1) || (data.app !== BACKUP_APP && data.app !== undefined)) throw new Error("Ce fichier n'est pas une sauvegarde Pop Mart reconnue.");
     if (data.items.length > 2500) throw new Error('Sauvegarde trop volumineuse.');
     const catalog = [], custom = [], seen = new Set();
@@ -921,7 +933,7 @@
     return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
   }
 
-  async function inflate(bytes) {
+  async function inflate(bytes, max = MAX_PAYLOAD) {
     const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw')).getReader();
     const parts = [];
     let size = 0;
@@ -929,7 +941,7 @@
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > MAX_PAYLOAD) { reader.cancel(); throw new Error('Charge utile trop volumineuse'); }
+      if (size > max) { reader.cancel(); throw new Error('Charge utile trop volumineuse'); }
       parts.push(value);
     }
     return new Blob(parts).text();
@@ -984,6 +996,46 @@
     return { items, ignored };
   }
 
+  // ---- Partage chiffré : AES-GCM 256, clé dans le fragment `#` du lien (jamais envoyée au serveur) ----
+  // Lien : BASE_URL#s=<id du partage>.<clé base64url, 43 car.> ; le serveur ne stocke que `base64url(iv(12) | AES-GCM(flag | contenu))`,
+  // où flag 1 = JSON compressé (deflate-raw), 0 = JSON brut.
+  const SHARE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  const SHARE_KEY_RE = /^[A-Za-z0-9_-]{43}$/;
+  const SHARE_MAX_BYTES = 6 * 1024 * 1024;
+  const SHARE_MAX_PLAIN = 60 * 1024 * 1024;
+
+  async function encryptShare(obj) {
+    const raw = new TextEncoder().encode(JSON.stringify(obj));
+    let body = raw, flag = 0;
+    if (window.CompressionStream) { try { body = await deflate(raw); flag = 1; } catch {} }
+    const plain = new Uint8Array(body.length + 1);
+    plain[0] = flag; plain.set(body, 1);
+    const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
+    const out = new Uint8Array(12 + ct.length);
+    out.set(iv); out.set(ct, 12);
+    if (out.length > SHARE_MAX_BYTES) throw Object.assign(new Error(`Collection trop volumineuse pour un partage en ligne (${(out.length / 1048576).toFixed(1)} Mo, maximum ${SHARE_MAX_BYTES / 1048576} Mo)`), { tooBig: true });
+    return { data: b64.enc(out), key: b64.enc(new Uint8Array(await crypto.subtle.exportKey('raw', key))), bytes: out.length };
+  }
+
+  async function decryptShare(data, keyB64) {
+    if (typeof data !== 'string' || !/^[A-Za-z0-9_-]+$/.test(data) || data.length > 8500000 || !SHARE_KEY_RE.test(keyB64)) throw new Error('Lien invalide');
+    const bytes = b64.dec(data);
+    if (bytes.length < 29) throw new Error('Lien invalide');
+    let plain;
+    try {
+      const key = await crypto.subtle.importKey('raw', b64.dec(keyB64), { name: 'AES-GCM' }, false, ['decrypt']);
+      plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.subarray(0, 12) }, key, bytes.subarray(12)));
+    } catch { throw new Error('Lien invalide ou altéré : impossible de déchiffrer ce partage.'); }
+    if (plain[0] === 1) {
+      if (!window.DecompressionStream) throw new Error('Navigateur non compatible avec ce partage.');
+      return inflate(plain.subarray(1), SHARE_MAX_PLAIN);
+    }
+    if (plain[0] === 0) return new TextDecoder().decode(plain.subarray(1));
+    throw new Error('Partage non reconnu');
+  }
+
   // ---- Fenêtre unique (partage, scanner, import, messages) ----
   const mk = (tag, cls, text) => {
     const e = document.createElement(tag);
@@ -1016,37 +1068,85 @@
   $('sheet').addEventListener('close', stopScan);
   $('sheet').addEventListener('click', (e) => { if (e.target === $('sheet')) closeSheet(); });
 
+  function qrNode(link) {
+    if (!window.qrcode) return null;
+    try {
+      const q = window.qrcode(0, 'L');
+      q.addData(link, 'Byte');
+      q.make();
+      const holder = mk('div');
+      holder.id = 'qr';
+      holder.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+      return holder;
+    } catch { return null; }
+  }
+
+  function linkButtons(link) {
+    const copy = mkBtn('Copier le lien', 'primary', async () => {
+      try { await navigator.clipboard.writeText(link); copy.textContent = 'Lien copié'; } catch { copy.textContent = 'Copie impossible'; }
+      setTimeout(() => { copy.textContent = 'Copier le lien'; }, 1800);
+    });
+    const out = [copy];
+    if (navigator.share) out.push(mkBtn('Partager…', '', () => navigator.share({ title: 'Ma collection Pop Mart', url: link }).catch(() => {})));
+    return out;
+  }
+
+  // Avec des figurines perso, il faut un partage en ligne chiffré (les photos ne tiennent pas dans un QR)
   async function openShare() {
+    if (!collection.length) return;
+    if (collection.some((c) => c.custom) && Exchange.configured) return openEncryptedShare();
+    return openLegacyShare('le partage en ligne est indisponible');
+  }
+
+  async function openEncryptedShare() {
+    const status = mk('p', '', 'Préparation du partage chiffré…');
+    const closeRow = mk('div', 'btns');
+    closeRow.append(mkBtn('Fermer', '', closeSheet));
+    showSheet(mk('h2', '', 'Partager ma collection'), status, closeRow);
+    try {
+      const { backup, missing } = await buildBackup({ shrink: true, onProgress: (i, n) => { status.textContent = `Photos : ${i}/${n}`; } });
+      status.textContent = 'Chiffrement…';
+      const { data, key, bytes } = await encryptShare(backup);
+      status.textContent = `Envoi (${(bytes / 1048576).toFixed(1)} Mo)…`;
+      const id = await Exchange.createShare(data);
+      const link = `${BASE_URL}#s=${id}.${key}`;
+      const nCustom = backup.items.filter((i) => i.type === 'custom').length;
+      const nodes = [
+        mk('h2', '', 'Partager ma collection'),
+        mk('p', '', `${backup.count} élément(s), dont ${nCustom} figurine(s) perso avec photo. Lien chiffré, valable 24 h.`),
+      ];
+      if (missing) nodes.push(mk('p', 'warn', `${missing} photo(s) introuvable(s) non partagée(s).`));
+      const qr = qrNode(link);
+      nodes.push(qr ?? mk('p', 'warn', 'Générateur de QR code indisponible : copiez le lien.'));
+      nodes.push(mk('p', '', "Scannez ce QR code avec l'appareil photo ou le scanner de l'appli. Les photos sont chiffrées : seul ce lien permet de les lire."));
+      const btns = mk('div', 'btns');
+      btns.append(...linkButtons(link));
+      const stop = mkBtn('Arrêter le partage', '', async () => {
+        stop.disabled = true;
+        try { await Exchange.deleteShare(id); notice('Partage arrêté', 'Ce lien ne fonctionne plus.'); }
+        catch (e) { stop.disabled = false; notice('Action impossible', e.message); }
+      });
+      btns.append(stop, mkBtn('Fermer', '', closeSheet));
+      showSheet(...nodes, btns);
+    } catch (e) {
+      openLegacyShare(`partage en ligne impossible (${e.message || 'erreur'})`);
+    }
+  }
+
+  // QR sans serveur : images du catalogue uniquement (jamais d'URL d'image ni de photo)
+  async function openLegacyShare(why) {
     if (!collection.length) return;
     const { payload, products: np, images } = await encodeCollection(collection);
     const link = BASE_URL + '#c=' + payload;
     const btns = mk('div', 'btns');
     const nodes = [mk('h2', '', 'Partager ma collection'), mk('p', '', `${images} image(s) · ${np} produit(s)`)];
     const nCustom = collection.filter((c) => c.custom).length;
-    if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) : leurs photos restent sur cet appareil. La sauvegarde par fichier, elle, les inclut.`));
-    let qrOk = false;
-    if (window.qrcode && images) {
-      try {
-        const q = window.qrcode(0, 'L');
-        q.addData(link, 'Byte');
-        q.make();
-        const holder = mk('div');
-        holder.id = 'qr';
-        holder.innerHTML = q.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
-        nodes.push(holder, mk('p', '', "Scannez ce QR code avec l'appareil photo ou avec le scanner de l'appli popmart."));
-        qrOk = true;
-      } catch {}
-    }
-    if (!qrOk) nodes.push(mk('p', 'warn', window.qrcode ? `Collection trop grande pour un QR code (${np} produits). Utilisez la sauvegarde par fichier.` : 'Générateur de QR code indisponible (hors ligne ?). Utilisez la sauvegarde par fichier.'));
-    if (qrOk && link.length > 1100) nodes.push(mk('p', '', "QR code très dense : si le scan échoue, augmentez la luminosité de l'écran ou utilisez « Copier le lien »."));
-    if (qrOk) {
-      const copy = mkBtn('Copier le lien', 'primary', async () => {
-        try { await navigator.clipboard.writeText(link); copy.textContent = 'Lien copié'; } catch { copy.textContent = 'Copie impossible'; }
-        setTimeout(() => { copy.textContent = 'Copier le lien'; }, 1800);
-      });
-      btns.append(copy);
-      if (navigator.share) btns.append(mkBtn('Partager…', '', () => navigator.share({ title: 'Ma collection Pop Mart', url: link }).catch(() => {})));
-    }
+    if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) dans ce QR : ${why}. La sauvegarde par fichier les inclut avec leurs photos.`));
+    const qr = images ? qrNode(link) : null;
+    if (qr) nodes.push(qr, mk('p', '', "Scannez ce QR code avec l'appareil photo ou avec le scanner de l'appli popmart."));
+    else nodes.push(mk('p', 'warn', !images ? "Aucune image du catalogue à partager par ce QR. Utilisez la sauvegarde par fichier." : window.qrcode ? `Collection trop grande pour un QR code (${np} produits). Utilisez la sauvegarde par fichier.` : 'Générateur de QR code indisponible (hors ligne ?). Utilisez la sauvegarde par fichier.'));
+    if (qr && link.length > 1100) nodes.push(mk('p', '', "QR code très dense : si le scan échoue, augmentez la luminosité de l'écran ou utilisez « Copier le lien »."));
+    if (qr) btns.append(...linkButtons(link));
     btns.append(mkBtn('Sauvegarde par fichier', '', openBackup), mkBtn('Fermer', '', closeSheet));
     showSheet(...nodes, btns);
   }
@@ -1081,7 +1181,25 @@
     );
   }
 
+  async function importShare(id, key) {
+    const status = mk('p', '', 'Téléchargement…');
+    showSheet(mk('h2', '', 'Collection reçue'), status);
+    try {
+      if (!SHARE_ID_RE.test(id) || !SHARE_KEY_RE.test(key)) throw new Error('Lien invalide');
+      if (!Exchange.configured) throw new Error("Le partage en ligne n'est pas disponible dans cette version de l'appli.");
+      let data;
+      try { data = await Exchange.getShare(id); } catch { throw new Error('Impossible de joindre le serveur de partage (hors ligne ?).'); }
+      if (!data) throw new Error('Ce partage a expiré ou a été arrêté.');
+      status.textContent = 'Déchiffrement…';
+      askBackup(parseBackupText(await decryptShare(data, key)));
+    } catch (e) {
+      notice('Import impossible', e.message || 'Lien invalide');
+    }
+  }
+
   async function importFromText(text) {
+    const sm = /#s=([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})/.exec(text);
+    if (sm) return importShare(sm[1], sm[2]);
     const m = /#c=([A-Za-z0-9_-]+)/.exec(text);
     try {
       if (!m) throw new Error('Lien invalide');
@@ -1099,7 +1217,7 @@
     video.setAttribute('playsinline', ''); video.muted = true;
     const msg = mk('p', '', "Visez le QR code d'une collection. Si la lecture échoue : rapprochez-vous, agrandissez le QR code, ou collez le lien ci-dessous.");
     const link = mk('input');
-    link.type = 'text'; link.inputMode = 'url'; link.autocomplete = 'off'; link.placeholder = 'https://…/#c=…';
+    link.type = 'text'; link.inputMode = 'url'; link.autocomplete = 'off'; link.placeholder = 'https://…/#…';
     const go = () => { const v = link.value.trim(); if (v) { stopScan(); importFromText(v); } };
     link.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     const btns = mk('div', 'btns');
@@ -1140,7 +1258,7 @@
         let text;
         try { text = await detect(); } catch {}
         if (scanStream !== stream) return;
-        if (text && text.includes('#c=')) { stopScan(); importFromText(text); return; }
+        if (text && /#[cs]=/.test(text)) { stopScan(); importFromText(text); return; }
         if (text) msg.textContent = "Ce QR code n'est pas une collection Pop Mart.";
       }
       requestAnimationFrame(tick);
@@ -1149,7 +1267,7 @@
   }
 
   function importFromHash() {
-    if (!location.hash.startsWith('#c=')) return;
+    if (!/^#[cs]=/.test(location.hash)) return;
     const h = location.hash;
     history.replaceState(null, '', location.pathname + location.search);
     importFromText(h);

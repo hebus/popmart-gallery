@@ -103,6 +103,28 @@ window.Exchange = (() => {
     return check(row);
   }
 
+  // ---- Partage chiffré (voir supabase/shares.sql) : le serveur ne reçoit que du texte chiffré ----
+  async function createShare(data) {
+    need();
+    await ensureUser();
+    const { data: id, error } = await sb.rpc('create_share', { p_data: data });
+    if (error) throw new Error(error.message);
+    return id;
+  }
+
+  async function getShare(id) {
+    need();
+    const { data, error } = await sb.rpc('get_share', { p_id: id });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async function deleteShare(id) {
+    need();
+    const { error } = await sb.rpc('delete_share', { p_id: id });
+    if (error) throw new Error(error.message);
+  }
+
   async function myListingsAll() {
     const u = await sessionUser();
     if (!u) return [];
@@ -178,6 +200,7 @@ window.Exchange = (() => {
   return {
     configured, PAGE,
     get me() { return me; },
+    createShare, getShare, deleteShare,
     loadMe, saveProfile, listListings, myListingsAll, myInterestIds, publish, removeListing, setInterest, contactsOf,
     listNotifications, unreadCount, markRead, removeNotifications, subscribe,
     onAuthChange: (cb) => configured && sb.auth.onAuthStateChange(() => cb()),
