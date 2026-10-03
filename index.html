@@ -82,10 +82,18 @@
   .box video { width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:#000; }
   .btns { display:flex; flex-wrap:wrap; gap:8px; }
   .btn { flex:1 1 140px; min-height:44px; padding:0 16px; border-radius:999px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:.95rem; font-weight:500; }
+  .btn.ico { display:inline-flex; align-items:center; justify-content:center; gap:8px; }
+  .btn .ico-svg { width:20px; height:20px; flex:none; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .btn.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
   .tools button:disabled { opacity:.45; cursor:not-allowed; }
 
   .bar-r { display:flex; align-items:center; gap:8px; }
+  .preview { width:min(100%,240px); aspect-ratio:1; align-self:center; border-radius:16px; background:var(--border); color:var(--muted); font-size:.85rem; display:flex; align-items:center; justify-content:center; text-align:center; overflow:hidden; }
+  .preview img { width:100%; height:100%; object-fit:cover; display:block; }
+  .pic.missing::after { content:'Photo introuvable'; display:flex; align-items:center; justify-content:center; aspect-ratio:1; color:var(--muted); font-size:.8rem; }
+  .tools .primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
+  #empty .btn { flex:none; margin-top:16px; padding:0 20px; }
+  .listed { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .iconbtn { position:relative; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; padding:0; }
   .iconbtn[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
   .iconbtn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
@@ -166,6 +174,7 @@
     <div class="meta-row">
       <div id="count"></div>
       <div class="tools" id="tools" hidden>
+        <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
         <button id="colScan">Scanner</button>
         <button id="colClear">Vider</button>
@@ -196,9 +205,48 @@
   const products = window.PRODUCTS.map((p) => ({ ...p, key: norm(p.name) }));
   const byId = new Map(products.map((p) => [p.id, p]));
   const $ = (id) => document.getElementById(id);
+  // Photos des figurines perso : blobs JPEG dans IndexedDB (clé = uuid), jamais envoyées sur le réseau
+  const photoStore = (() => {
+    let dbp = null;
+    const urls = new Map();
+    const open = () => dbp ??= new Promise((res, rej) => {
+      if (!window.indexedDB) return rej(new Error('IndexedDB indisponible'));
+      const r = indexedDB.open('popmart', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('photos');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => { dbp = null; rej(r.error); };
+    });
+    const tx = async (mode, fn) => {
+      const db = await open();
+      return new Promise((res, rej) => {
+        const t = db.transaction('photos', mode);
+        const req = fn(t.objectStore('photos'));
+        t.oncomplete = () => res(req?.result);
+        t.onerror = t.onabort = () => rej(t.error ?? new Error('Stockage impossible'));
+      });
+    };
+    const revoke = (key, delay = 0) => {
+      const u = urls.get(key);
+      urls.delete(key);
+      if (u) u.then((url) => url && setTimeout(() => URL.revokeObjectURL(url), delay));
+    };
+    return {
+      async put(key, blob) { await tx('readwrite', (st) => st.put(blob, key)); revoke(key); },
+      url(src) {
+        const key = src.slice(6);
+        if (!urls.has(key)) urls.set(key, tx('readonly', (st) => st.get(key)).then((b) => (b ? URL.createObjectURL(b) : null)).catch(() => null));
+        return urls.get(key);
+      },
+      async delete(src) { const key = src.slice(6); revoke(key, 1000); await tx('readwrite', (st) => st.delete(key)).catch(() => {}); },
+      async clear() { for (const k of [...urls.keys()]) revoke(k, 1000); await tx('readwrite', (st) => st.clear()).catch(() => {}); },
+    };
+  })();
+
   const img = (src, alt = '') => {
     const i = new Image();
-    i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; i.alt = alt; i.src = encodeURI(src);
+    i.loading = 'lazy'; i.referrerPolicy = 'no-referrer'; i.alt = alt;
+    if (src.startsWith('local:')) photoStore.url(src).then((u) => { if (u) i.src = u; else i.closest?.('.pic')?.classList.add('missing'); });
+    else i.src = encodeURI(src);
     return i;
   };
 
@@ -306,7 +354,9 @@
   const persist = () => {
     try { localStorage.setItem(KEY, JSON.stringify(collection)); } catch {}
     $('pillCount').textContent = collection.length;
-    $('colShare').disabled = !collection.length;
+    const shareable = collection.some((c) => !c.custom);
+    $('colShare').disabled = !shareable;
+    $('colShare').title = !shareable && collection.length ? 'Seules les figurines du catalogue peuvent être partagées par QR code.' : '';
   };
 
   // ---- Affichage ----
@@ -366,9 +416,9 @@
     const stepper = mk('div', 'stepper');
     stepper.append(dec, mk('span', 'qty'), inc);
     const prop = mk('button', 'proposer');
-    prop.onclick = () => openListingSheet(c);
+    prop.onclick = () => c.custom ? openFigureSheet(c) : openListingSheet(c);
     const rm = addBtn(true, `Retirer ${c.name} de ma collection`);
-    rm.onclick = () => toggle(c);
+    rm.onclick = () => c.custom ? removeCustom(c) : toggle(c);
     const row = mk('div', 'row2');
     row.append(prop, rm);
     info.append(mk('div', 'name', c.name), stepper, mk('div', 'listed'), row);
@@ -385,8 +435,16 @@
   function paintCol(el, c) {
     el.querySelector('.qty').textContent = `×${c.qty}`;
     el.querySelector('.sbtn').disabled = c.qty <= 1;
-    const l = myListings.get(listingKey(c));
     const listed = el.querySelector('.listed');
+    if (c.custom) {
+      listed.hidden = false;
+      listed.textContent = c.note ? `Ma figurine · ${c.note}` : 'Ma figurine';
+      const edit = el.querySelector('.proposer');
+      edit.hidden = false;
+      edit.textContent = 'Modifier';
+      return;
+    }
+    const l = myListings.get(listingKey(c));
     listed.hidden = !l;
     if (l) listed.textContent = `En annonce · ${kindLabel(l)} ×${l.qty}`;
     const prop = el.querySelector('.proposer');
@@ -442,7 +500,8 @@
     if (animate) fx.cardsIn(els);
   }
 
-  const setEmpty = (title, text) => $('empty').replaceChildren(mk('b', '', title), document.createTextNode(text));
+  const setEmpty = (title, text, ...extra) => $('empty').replaceChildren(mk('b', '', title), document.createTextNode(text), ...extra);
+  const addAction = (name = '') => mkBtn(name ? `Ajouter « ${name} » à ma collection` : 'Ajouter une figurine', 'primary', () => openFigureSheet(null, name));
 
   function updateMeta() {
     const unit = view === 'mine' ? 'image(s)' : view === 'ex' ? 'annonce(s)' : 'produit(s)';
@@ -456,8 +515,11 @@
       const hint = exScope === 'mine' ? "Vous n'avez publié aucune annonce. Proposez un doublon depuis l'onglet Collection."
         : exScope === 'interested' ? "Vous n'avez marqué aucun intérêt." : 'Aucune annonce pour le moment.';
       setEmpty(exError ? 'Échanges indisponibles' : 'Aucune annonce', exError ?? hint);
-    } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +.');
-    else setEmpty('Aucun résultat', 'Essayez un autre nom.');
+    } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +, ou ajoutez votre propre figurine.', addAction());
+    else {
+      const q = $('q').value.trim().slice(0, 80);
+      setEmpty('Aucun résultat', view === 'all' ? 'Introuvable dans le catalogue ? Ajoutez-la vous-même avec une photo.' : 'Essayez un autre nom.', addAction(q));
+    }
     if (wasHidden) fx.emptyIn();
   }
 
@@ -571,6 +633,7 @@
 
   function exportJson() {
     const items = collection.map((c) => {
+      if (c.custom) return { custom: true, productName: c.name, note: c.note || undefined, quantity: c.qty };
       const p = byId.get(c.id);
       return { image: c.src, quantity: c.qty, productId: c.id, productName: c.name, productUrl: p?.url, price: p?.price, currency: p?.currency };
     });
@@ -580,6 +643,109 @@
     a.download = `popmart-collection-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  // ---- Figurines perso (photo appareil / galerie, nom) : stockées uniquement sur l'appareil ----
+  const MAX_CUSTOM = 200;
+  const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+  // Réduit à 1024 px et ré-encode en JPEG : supprime aussi les métadonnées EXIF (dont la localisation GPS)
+  async function processPhoto(file) {
+    if (file.type && !file.type.startsWith('image/')) throw new Error("Ce fichier n'est pas une image.");
+    if (file.size > 25 * 1024 * 1024) throw new Error('Image trop volumineuse (25 Mo maximum).');
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch {
+      bmp = await new Promise((res, rej) => {
+        const i = new Image(), u = URL.createObjectURL(file);
+        i.onload = () => { URL.revokeObjectURL(u); res(i); };
+        i.onerror = () => { URL.revokeObjectURL(u); rej(); };
+        i.src = u;
+      }).catch(() => { throw new Error("Format d'image non supporté par ce navigateur (essayez en JPEG ou PNG)."); });
+    }
+    const w = bmp.width ?? bmp.naturalWidth, h = bmp.height ?? bmp.naturalHeight;
+    const k = Math.min(1, 1024 / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close?.();
+    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.82));
+    if (!blob) throw new Error('Impossible de traiter cette image.');
+    return blob;
+  }
+
+  // existing : figurine à modifier ; presetName : nom prérempli (ex. depuis une recherche sans résultat)
+  function openFigureSheet(existing, presetName = '') {
+    if (!existing && collection.filter((c) => c.custom).length >= MAX_CUSTOM) return notice('Limite atteinte', `Vous ne pouvez pas ajouter plus de ${MAX_CUSTOM} figurines perso.`);
+    let blob = null, busy = false, previewUrl = null;
+    const preview = mk('div', 'preview');
+    if (existing) preview.append(img(existing.src, existing.name)); else preview.textContent = 'Aucune photo';
+    const err = mk('p', 'warn'); err.hidden = true;
+    const name = mk('input'); name.maxLength = 80; name.value = existing?.name ?? presetName; name.placeholder = 'Ex. Molly édition limitée';
+    const note = mk('input'); note.maxLength = 140; note.value = existing?.note ?? ''; note.placeholder = 'Série, état, où vous l\'avez trouvée… (optionnel)';
+    const qty = mk('input'); qty.type = 'number'; qty.min = '1'; qty.max = '99'; qty.step = '1'; qty.inputMode = 'numeric'; qty.value = existing?.qty ?? 1;
+    const cam = mk('input'), gal = mk('input');
+    for (const i of [cam, gal]) { i.type = 'file'; i.accept = 'image/*'; i.hidden = true; }
+    cam.setAttribute('capture', 'environment');
+    const save = mkBtn(existing ? 'Enregistrer' : 'Ajouter', 'primary', onSave);
+    const update = () => { save.disabled = busy || !name.value.trim() || !(blob || existing); };
+    const onFile = async (inp) => {
+      const f = inp.files[0];
+      inp.value = '';
+      if (!f) return;
+      err.hidden = true; busy = true; update();
+      try {
+        blob = await processPhoto(f);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        previewUrl = URL.createObjectURL(blob);
+        const i = new Image(); i.alt = 'Aperçu'; i.src = previewUrl;
+        preview.replaceChildren(i);
+      } catch (e) { err.textContent = e.message || 'Impossible de lire cette photo.'; err.hidden = false; }
+      busy = false; update();
+    };
+    cam.onchange = () => onFile(cam);
+    gal.onchange = () => onFile(gal);
+    name.oninput = update;
+    async function onSave() {
+      const label = name.value.trim(), n = Math.min(99, Math.max(1, Math.floor(Number(qty.value)) || 1));
+      busy = true; update(); err.hidden = true;
+      try {
+        const id = existing ? existing.src.slice(6) : newId();
+        if (blob) await photoStore.put(id, blob);
+        if (existing) Object.assign(existing, { name: label, note: note.value.trim() || undefined, qty: n });
+        else collection = [...collection, { src: `local:${id}`, id: `local:${id}`, name: label, note: note.value.trim() || undefined, qty: n, custom: true }];
+        navigator.storage?.persist?.().catch(() => {});
+        persist();
+        closeSheet();
+        if (view !== 'mine') setView('mine');
+        else { const words = norm($('q').value).split(/\s+/).filter(Boolean); if (!words.every((w) => norm(label).includes(w))) $('q').value = ''; render(); }
+        fx.bump(false);
+      } catch {
+        err.textContent = "Impossible d'enregistrer la photo sur cet appareil (stockage plein ou navigation privée ?).";
+        err.hidden = false; busy = false; update();
+      }
+    }
+    const photoBtns = mk('div', 'btns');
+    photoBtns.append(iconBtn('Photo', ICON_CAMERA, '', () => cam.click()), iconBtn('Galerie', ICON_GALLERY, '', () => gal.click()));
+    const btns = mk('div', 'btns');
+    btns.append(save, mkBtn('Annuler', '', closeSheet));
+    update();
+    showSheet(
+      mk('h2', '', existing ? 'Modifier ma figurine' : 'Ajouter une figurine'),
+      preview, photoBtns, cam, gal,
+      field('Nom (obligatoire)', name), field('Note', note), field('Quantité', qty),
+      mk('p', '', "La photo reste sur cet appareil : elle n'est jamais envoyée. Vider les données du site la supprime."),
+      err, btns,
+    );
+    $('sheet').addEventListener('close', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, { once: true });
+  }
+
+  function removeCustom(c) {
+    if (!confirm(`Supprimer « ${c.name} » et sa photo ?`)) return;
+    toggle(c);
+    photoStore.delete(c.src);
   }
 
   // ---- Partage : lien `#c=<charge utile>` (id produit + indices d'images, jamais d'URL d'image) ----
@@ -672,6 +838,14 @@
     return e;
   };
   const mkBtn = (label, cls, onclick) => { const b = mk('button', 'btn ' + cls, label); b.onclick = onclick; return b; };
+  const ICON_CAMERA = '<path d="M3 8a2 2 0 012-2h2l1.5-2h7L17 6h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><circle cx="12" cy="13" r="3.5"/>';
+  const ICON_GALLERY = '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-8 9"/>';
+  // Bouton avec icône (SVG statique, jamais de données utilisateur dans le HTML)
+  const iconBtn = (label, icon, cls, onclick) => {
+    const b = mkBtn(label, 'ico ' + cls, onclick);
+    b.insertAdjacentHTML('afterbegin', `<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true">${icon}</svg>`);
+    return b;
+  };
   let scanStream = null;
   const stopScan = () => { scanStream?.getTracks().forEach((tr) => tr.stop()); scanStream = null; };
   const closeSheet = () => { stopScan(); if ($('sheet').open) $('sheet').close(); };
@@ -694,6 +868,8 @@
     const link = BASE_URL + '#c=' + payload;
     const btns = mk('div', 'btns');
     const nodes = [mk('h2', '', 'Partager ma collection'), mk('p', '', `${images} image(s) · ${np} produit(s)`)];
+    const nCustom = collection.filter((c) => c.custom).length;
+    if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) : leurs photos restent sur cet appareil (le fichier JSON n'inclut pas non plus les photos).`));
     let qrOk = false;
     if (window.qrcode && images) {
       try {
@@ -724,7 +900,8 @@
   // ---- Import (appareil photo => hash au chargement ; scanner intégré) ----
   function applyImport(items, mode) {
     const fresh = (list) => list.map((i) => ({ ...i, qty: 1 }));
-    collection = mode === 'merge' ? [...collection, ...fresh(items.filter((i) => !inCol(i.src)))] : fresh(items);
+    const own = collection.filter((c) => c.custom);
+    collection = mode === 'merge' ? [...collection, ...fresh(items.filter((i) => !inCol(i.src)))] : [...own, ...fresh(items)];
     persist();
     closeSheet();
     if (view === 'mine') render(); else setView('mine');
@@ -734,17 +911,18 @@
     const np = new Set(items.map((i) => i.id)).size;
     const skipped = ignored ? ` · ${ignored} ignorée(s) (produit inconnu de ce catalogue)` : '';
     if (!items.length) return notice('Collection vide', 'Aucune image reconnue dans ce lien.' + skipped);
-    if (!collection.length) { applyImport(items, 'replace'); if (ignored) notice('Collection importée', `${items.length} image(s)` + skipped); return; }
+    const nCat = collection.filter((c) => !c.custom).length;
+    if (!nCat) { applyImport(items, 'replace'); if (ignored) notice('Collection importée', `${items.length} image(s)` + skipped); return; }
     const btns = mk('div', 'btns');
     btns.append(
       mkBtn('Fusionner', 'primary', () => applyImport(items, 'merge')),
-      mkBtn('Remplacer', '', () => { if (confirm(`Remplacer vos ${collection.length} image(s) par celles reçues ?`)) applyImport(items, 'replace'); }),
+      mkBtn('Remplacer', '', () => { if (confirm(`Remplacer vos ${nCat} image(s) du catalogue par celles reçues ? Vos figurines perso sont conservées.`)) applyImport(items, 'replace'); }),
       mkBtn('Annuler', '', closeSheet),
     );
     showSheet(
       mk('h2', '', 'Collection reçue'),
       mk('p', '', `${items.length} image(s) · ${np} produit(s)` + skipped),
-      mk('p', '', `Vous avez déjà ${collection.length} image(s) dans votre collection.`),
+      mk('p', '', `Vous avez déjà ${nCat} image(s) du catalogue dans votre collection.`),
       btns,
     );
   }
@@ -1117,10 +1295,13 @@
   $('bell').onclick = openNotifications;
   $('pill').onclick = () => setView('mine');
   $('profileBtn').onclick = () => askProfile();
+  $('colAdd').onclick = () => openFigureSheet();
   $('colShare').onclick = openShare;
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
-    if (!collection.length || !confirm('Vider toute la collection ?')) return;
+    const nCustom = collection.filter((c) => c.custom).length;
+    if (!collection.length || !confirm(nCustom ? `Vider toute la collection ? Les ${nCustom} figurine(s) perso et leurs photos seront supprimées.` : 'Vider toute la collection ?')) return;
+    if (nCustom) photoStore.clear();
     collection = [];
     persist();
     const els = [...document.querySelectorAll('.card')];

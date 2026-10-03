@@ -26,6 +26,7 @@ Le CSS de base cible un écran de **360 à 390 px** ; les `@media (min-width: 64
 - **Collection** : tableau d'**images**, pas de produits : `[{ src, id, name, qty }]` (`src` = URL de l'image, `id`/`name` = produit d'origine, `qty` = nombre d'exemplaires, 1 à 99, 1 par défaut). Un **doublon** = `qty >= 2`.
 - Persistance : `localStorage['popmart-collection']`. Au chargement, un ancien format (liste d'identifiants de produits) est converti en images (première image du produit) et `qty` absent vaut 1.
 - La quantité n'est **pas** transmise par le partage QR (format `#c=` v1 inchangé) : un import crée des éléments avec `qty = 1`, une fusion conserve la quantité locale. L'export JSON de secours contient `quantity`.
+- **Figurine perso** (absente du catalogue) : `{ src: 'local:<uuid>', id: 'local:<uuid>', name, note?, qty, custom: true }`. `src` et `id` valent la même référence, donc tout le code indexé par `src` fonctionne tel quel. La **photo** n'est pas dans le `localStorage` mais dans **IndexedDB** (base `popmart`, store `photos`, clé = uuid, blob JPEG), via le module `photoStore` ; `img()` charge les `local:` depuis ce module. Les photos ne quittent **jamais** l'appareil. Plafond : 200 figurines perso.
 
 ## Écrans et parcours attendus
 
@@ -47,7 +48,10 @@ L'en-tête (titre, pastille de compteur, recherche, onglets) est sticky et visib
    - Un clic sur l'image l'agrandit ; le bouton ✓ la retire (la carte disparaît et la grille se réorganise).
    - Chaque carte a un sélecteur de quantité `− ×n +` (min 1) ; si `qty >= 2` (ou si une annonce existe) un bouton « Proposer » / « Modifier l'annonce » apparaît (voir « Échanges »).
    - Boutons (dans la ligne du compteur, pas dans l'en-tête) **Share** (désactivé si la collection est vide), **Scanner** et **Vider** (avec confirmation). Voir « Partage » ci-dessous. Il n'y a plus de bouton « Exporter JSON » : le JSON n'est qu'un repli dans la fenêtre Share.
-   - Collection vide : message « Collection vide ».
+   - Collection vide : message « Collection vide » avec un bouton « Ajouter une figurine ».
+   - Bouton **« + Ajouter »** (ligne d'outils) : ouvre la fenêtre d'ajout d'une figurine perso. Sur le catalogue, une recherche sans résultat propose « Ajouter « <recherche> » à ma collection » (nom prérempli).
+   - **Fenêtre d'ajout / modification** : aperçu, « Photo » (`<input type=file accept=image/* capture=environment>`, appareil photo) et « Galerie » (sans `capture`) ; aucune API caméra, donc aucune autorisation à gérer côté appli (refusée, la galerie reste possible). Nom obligatoire (80 car.), note (140), quantité. « Ajouter » reste désactivé tant que nom **et** photo manquent. La photo est réduite à 1024 px et ré-encodée en JPEG (0,82), ce qui **supprime les métadonnées EXIF, dont le GPS**. Si l'écriture IndexedDB échoue, rien n'est ajouté (la métadonnée n'est écrite qu'après la photo).
+   - **Carte perso** : badge « Ma figurine » (+ note), quantité `− ×n +`, bouton « Modifier » (à la place de « Proposer »), ✓ pour supprimer (confirmation, la photo est supprimée). Une photo introuvable (données du site effacées) affiche « Photo introuvable ».
 4. **Échanges** (onglet) : annonces des doublons des utilisateurs, voir « Échanges, intérêts et notifications ».
 5. **Zoom** : `<dialog>` plein écran affichant l'image ; se ferme avec ✕, un clic hors de l'image ou Échap.
 
@@ -64,6 +68,7 @@ Objectif : transférer sa collection vers un autre appareil par QR code, sans se
 - **Réception par l'appareil photo** : l'URL s'ouvre sur l'appli, le hash `#c=` est lu au chargement (et sur `hashchange`) puis **effacé** (`history.replaceState`) pour qu'un rechargement ne ré-importe pas.
 - **Scanner intégré** : caméra arrière (`getUserMedia`, HTTPS ou localhost requis), `BarcodeDetector` si disponible, sinon `jsQR` chargé à la demande. Tout QR contenant `#c=` est accepté ; le flux caméra est **toujours** arrêté (scan réussi, fermeture, changement de contenu de la fenêtre). Caméra refusée : message, l'appli reste utilisable.
 - **Import** : collection locale vide -> import direct ; sinon fenêtre **Fusionner** (ajout sans doublon sur `src`) / **Remplacer** (confirmation) / **Annuler**. Après import : onglet « Collection », pastille mise à jour.
+- **Figurines perso et partage** : elles n'ont pas d'identifiant catalogue, elles sont donc **exclues** du lien QR (message « N figurine(s) perso non incluse(s) » dans Share) et du fichier JSON de secours pour leurs photos (le JSON garde nom, note, quantité). Share est désactivé si la collection ne contient que du perso. L'import « Remplacer » **conserve** les figurines perso ; « Vider » les supprime avec leurs photos (la confirmation le dit). Elles ne peuvent pas être proposées dans l'onglet Échanges (pas de « Proposer »).
 - **Sécurité** : la charge utile est une donnée non fiable. `decodeCollection` valide le préfixe, la taille (déflate plafonné à 200 Ko, anti zip-bomb), la version, le format UUID des ids, l'existence du produit, des indices entiers dans les bornes, <= 2 000 produits / 500 indices par produit ; les éléments invalides sont comptés comme « ignorés ». Les valeurs ne sont jamais insérées via `innerHTML` (seul le SVG du QR, généré localement, l'est).
 - Sans CDN : `qrcode-generator` absent -> Share propose le JSON ; `jsQR` absent -> message dans le scanner ; le reste de l'appli fonctionne.
 
@@ -99,6 +104,10 @@ Toutes passent par l'objet `fx` ; la logique métier ne doit jamais dépendre d'
 - [ ] Ajouter plusieurs images depuis le détail : la pastille s'incrémente, le bouton passe à ✓.
 - [ ] Retour : même recherche, même scroll, indicateur `n/total` correct.
 - [ ] Onglet « Collection » : les images ajoutées sont affichées ; en retirer une la fait disparaître ; la quantité `− ×n +` fonctionne et persiste après rechargement.
+- [ ] Figurine perso : « Photo » ouvre l'appareil photo, « Galerie » les photos ; l'aperçu s'affiche, « Ajouter » est désactivé sans nom ou sans photo ; la carte survit au rechargement et au redémarrage du navigateur.
+- [ ] Photo perso réduite à <= 1024 px, sans EXIF/GPS ; modifier nom/photo/quantité ; supprimer retire la carte et la photo ; « Vider » aussi.
+- [ ] Collection mixte : Share affiche « figurine(s) perso non incluse(s) » ; import « Remplacer » garde les perso ; pas de « Proposer » sur une carte perso.
+- [ ] Recherche sans résultat dans le catalogue : le bouton « Ajouter « … » » préremplit le nom.
 - [ ] Sans Supabase configuré : aucune erreur console, cloche et « Proposer » masqués, onglet Échanges avec message clair.
 - [ ] Avec Supabase (2 navigateurs) : A publie un doublon (qty >= 2), B voit l'annonce, la tague (ruban + contact de A), A reçoit la notification en temps réel avec le contact de B ; B retire le tag : la notification disparaît ; B retrouve son tag après rechargement.
 - [ ] Cloche : marquer lu, tout marquer lu, supprimer, tout supprimer ; pastille correcte.
