@@ -84,6 +84,48 @@
   .btn { flex:1 1 140px; min-height:44px; padding:0 16px; border-radius:999px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:.95rem; font-weight:500; }
   .btn.primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
   .tools button:disabled { opacity:.45; cursor:not-allowed; }
+
+  .bar-r { display:flex; align-items:center; gap:8px; }
+  #bell { position:relative; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; padding:0; }
+  #bell[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
+  #bell svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  #bellBadge { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#d93025; color:#fff; font-size:.7rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .tab { padding:0 8px; font-size:.9rem; }
+  .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+  .pillbtn { min-height:44px; padding:0 14px; border-radius:999px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:.9rem; transition:background .25s, color .25s, border-color .25s; }
+  .pillbtn.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
+  .card { position:relative; }
+  .ribbon { position:absolute; top:10px; left:0; background:var(--accent); color:var(--on-accent); font-size:.75rem; font-weight:700; padding:4px 10px 4px 8px; border-radius:0 999px 999px 0; pointer-events:none; }
+  .card.tagged { border-color:var(--accent); }
+  .kindrow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .badge { font-size:.75rem; font-weight:700; padding:3px 9px; border-radius:999px; border:1.5px solid var(--text); }
+  .badge.sale { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .qtyb, .owner, .note, .contact, .listed { font-size:.78rem; color:var(--muted); }
+  .contact { color:var(--text); font-weight:500; }
+  .listed { font-weight:700; color:var(--text); }
+  .listed[hidden], .contact[hidden], .ribbon[hidden], .proposer[hidden] { display:none; }
+  .tagbtn { width:100%; min-height:44px; margin-top:8px; border-radius:999px; border:1.5px solid var(--text); background:var(--card); color:var(--text); font-weight:700; font-size:.88rem; transition:background .25s, color .25s, border-color .25s; }
+  .tagbtn.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .tagbtn.ghost { border-color:var(--border); font-weight:500; }
+  .acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .acts .tagbtn { flex:1 1 90px; margin-top:0; }
+  .stepper { display:flex; align-items:center; justify-content:space-between; gap:4px; margin-top:4px; }
+  .sbtn { width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:1.3rem; line-height:1; padding:0; }
+  .sbtn:disabled { opacity:.4; }
+  .qty { font-weight:700; font-size:1rem; }
+  .row2 { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; padding-top:8px; }
+  .proposer { flex:1; min-height:44px; border-radius:999px; border:1.5px solid var(--text); background:var(--card); color:var(--text); font-weight:700; font-size:.82rem; padding:0 8px; }
+  .box label { display:flex; flex-direction:column; gap:4px; font-size:.85rem; color:var(--muted); }
+  .box input, .box select { width:100%; height:48px; padding:0 14px; font-size:1rem; font-family:inherit; border:1.5px solid var(--border); border-radius:12px; background:var(--card); color:var(--text); }
+  .box .pills { margin-top:0; }
+  .notifs { display:flex; flex-direction:column; gap:10px; }
+  .notif { display:flex; gap:10px; padding:10px; border:1.5px solid var(--border); border-radius:14px; background:var(--card); }
+  .notif.unread { border-color:var(--accent); }
+  .notif img { width:52px; height:52px; border-radius:10px; object-fit:cover; flex:none; background:var(--border); }
+  .notif .body { min-width:0; flex:1; display:flex; flex-direction:column; gap:4px; font-size:.88rem; line-height:1.35; }
+  .notif .when { font-size:.75rem; color:var(--muted); }
+  .notif .sm { display:flex; flex-wrap:wrap; gap:6px; }
+  .notif .sm button { min-height:44px; padding:0 12px; border-radius:999px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:.82rem; }
   dialog::backdrop { background:rgba(0,0,0,.88); }
   .lb { width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; gap:12px; padding:16px; }
   .lb .gal { display:flex; gap:12px; overflow-x:auto; scroll-snap-type:x mandatory; align-items:center; }
@@ -97,15 +139,22 @@
   <div class="wrap">
     <div class="bar">
       <h1>Pop Mart</h1>
-      <div id="pill" aria-label="Taille de ma collection">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
-        <span id="pillCount">0</span>
+      <div class="bar-r">
+        <button id="bell" aria-label="Notifications" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg>
+          <span id="bellBadge" hidden>0</span>
+        </button>
+        <div id="pill" aria-label="Taille de ma collection">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>
+          <span id="pillCount">0</span>
+        </div>
       </div>
     </div>
     <input id="q" type="search" placeholder="Rechercher une figurine" aria-label="Rechercher une figurine">
     <div class="tabs">
       <button class="tab on" id="tabAll">Catalogue</button>
-      <button class="tab" id="tabMine">Ma collection</button>
+      <button class="tab" id="tabMine">Collection</button>
+      <button class="tab" id="tabEx">Échanges</button>
     </div>
   </div>
 </div>
@@ -119,6 +168,10 @@
         <button id="colClear">Vider</button>
       </div>
     </div>
+    <div id="exBar" hidden>
+      <div class="pills" id="exScope"></div>
+      <div class="pills" id="exKind"></div>
+    </div>
     <div id="grid"></div>
     <div id="empty" hidden></div>
     <button id="more" hidden>Afficher plus</button>
@@ -131,7 +184,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/Flip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="products.js"></script>
+<script src="exchange.js"></script>
 <script>
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -209,6 +264,20 @@
       emptyIn() {
         if (ok) g.from('#empty', { y: 16, autoAlpha: 0, duration: .4, ease: 'power2.out', clearProps: CLEAR });
       },
+      tag(btn) {
+        if (ok) g.fromTo(btn, { scale: .9 }, { scale: 1, duration: .5, ease: 'elastic.out(1,.4)', clearProps: 'transform' });
+      },
+      ribbonIn(r) {
+        if (ok && r) g.from(r, { x: -30, autoAlpha: 0, duration: .35, ease: 'back.out(2)', clearProps: CLEAR });
+      },
+      notifIn(els) {
+        if (ok && els.length) g.from([...els].slice(0, 12), { x: 30, autoAlpha: 0, stagger: .05, duration: .35, ease: 'power2.out', clearProps: CLEAR });
+      },
+      bell() {
+        if (!ok) return;
+        g.fromTo('#bell', { rotation: -18 }, { rotation: 0, duration: .8, ease: 'elastic.out(1,.3)' });
+        g.fromTo('#bellBadge', { scale: 1.8 }, { scale: 1, duration: .5, ease: 'back.out(3)' });
+      },
       sheetIn() {
         if (ok) g.from('#sheetBox', { y: 30, scale: .95, autoAlpha: 0, duration: .35, ease: 'power3.out', clearProps: CLEAR });
       },
@@ -227,7 +296,7 @@
       if (typeof c !== 'string') return c;
       const p = byId.get(c);
       return p && p.images[0] ? { src: p.images[0], id: p.id, name: p.name } : null;
-    }).filter((c) => c && c.src);
+    }).filter((c) => c && c.src).map((c) => ({ ...c, qty: Number.isInteger(c.qty) && c.qty >= 1 ? Math.min(c.qty, 99) : 1 }));
   } catch {}
   const inCol = (src) => collection.some((c) => c.src === src);
   const ownedCount = (id) => collection.filter((c) => c.id === id).length;
@@ -277,28 +346,83 @@
     return el;
   }
 
-  // Carte d'une image de la collection : le bouton la retire
+  // Carte d'une image de la collection : quantité (doublons), annonce, retrait
   function colCard(c) {
-    const el = document.createElement('article');
-    el.className = 'card';
+    const el = mk('article', 'card');
     el.dataset.src = c.src;
-    const pic = document.createElement('button');
-    pic.className = 'pic';
+    const pic = mk('button', 'pic');
     pic.setAttribute('aria-label', `Agrandir ${c.name}`);
     pic.append(img(c.src, c.name));
     pic.onclick = () => zoom(c.src, c.name);
-    const info = document.createElement('div');
-    info.className = 'info';
-    info.innerHTML = '<div class="name"></div><div class="row"><span></span></div>';
-    info.querySelector('.name').textContent = c.name;
+    const info = mk('div', 'info');
+    const dec = mk('button', 'sbtn', '−'), inc = mk('button', 'sbtn', '+');
+    dec.setAttribute('aria-label', `Un exemplaire de moins de ${c.name}`);
+    inc.setAttribute('aria-label', `Un exemplaire de plus de ${c.name}`);
+    dec.onclick = () => setQty(c, c.qty - 1);
+    inc.onclick = () => setQty(c, c.qty + 1);
+    const stepper = mk('div', 'stepper');
+    stepper.append(dec, mk('span', 'qty'), inc);
+    const prop = mk('button', 'proposer');
+    prop.onclick = () => openListingSheet(c);
     const rm = addBtn(true, `Retirer ${c.name} de ma collection`);
     rm.onclick = () => toggle(c);
-    info.querySelector('.row').append(rm);
+    const row = mk('div', 'row2');
+    row.append(prop, rm);
+    info.append(mk('div', 'name', c.name), stepper, mk('div', 'listed'), row);
     el.append(pic, info);
+    paintCol(el, c);
     return el;
   }
 
+  const listingKey = (c) => {
+    const i = byId.get(c.id)?.images.indexOf(c.src) ?? -1;
+    return i < 0 ? null : `${c.id}:${i}`;
+  };
+
+  function paintCol(el, c) {
+    el.querySelector('.qty').textContent = `×${c.qty}`;
+    el.querySelector('.sbtn').disabled = c.qty <= 1;
+    const l = myListings.get(listingKey(c));
+    const listed = el.querySelector('.listed');
+    listed.hidden = !l;
+    if (l) listed.textContent = `En annonce · ${kindLabel(l)} ×${l.qty}`;
+    const prop = el.querySelector('.proposer');
+    prop.hidden = !Exchange.configured || (c.qty < 2 && !l);
+    prop.textContent = l ? "Modifier l'annonce" : 'Proposer';
+  }
+
+  function refreshListed() {
+    if (view !== 'mine') return;
+    for (const el of $('grid').children) {
+      const c = collection.find((x) => x.src === el.dataset.src);
+      if (c) paintCol(el, c);
+    }
+  }
+
+  function setQty(c, n) {
+    n = Math.min(99, Math.max(1, n));
+    if (n === c.qty) return;
+    c.qty = n;
+    persist();
+    const el = [...$('grid').children].find((e) => e.dataset.src === c.src);
+    if (el) { paintCol(el, c); fx.tilePulse(el); }
+    reconcileListing(c, false);
+  }
+
+  // Une annonce ne peut jamais proposer plus que (quantité - 1) exemplaires
+  async function reconcileListing(c, removed) {
+    const key = listingKey(c), l = key && myListings.get(key);
+    if (!l) return;
+    const max = removed ? 0 : c.qty - 1;
+    try {
+      if (max < 1) { await Exchange.removeListing(l.id); myListings.delete(key); }
+      else if (l.qty > max) myListings.set(key, await Exchange.publish({ product_id: l.product_id, image_index: l.image_index, kind: l.kind, price: l.price, qty: max, note: l.note }));
+    } catch {}
+    refreshListed();
+  }
+
   function render() {
+    if (view === 'ex') return exView();
     const words = norm($('q').value).split(/\s+/).filter(Boolean);
     found = (view === 'mine' ? collection : products).filter((p) => words.every((w) => norm(p.name).includes(w)));
     $('grid').replaceChildren();
@@ -315,16 +439,22 @@
     if (animate) fx.cardsIn(els);
   }
 
+  const setEmpty = (title, text) => $('empty').replaceChildren(mk('b', '', title), document.createTextNode(text));
+
   function updateMeta() {
-    $('count').textContent = view === 'mine' ? `${found.length} image(s)` : `${found.length} produit(s)`;
+    const unit = view === 'mine' ? 'image(s)' : view === 'ex' ? 'annonce(s)' : 'produit(s)';
+    $('count').textContent = `${found.length} ${unit}`;
     const e = $('empty');
-    const empty = found.length === 0;
+    const empty = found.length === 0 && !(view === 'ex' && exLoading);
     const wasHidden = e.hidden;
     e.hidden = !empty;
     if (!empty) return;
-    e.innerHTML = view === 'mine' && !collection.length
-      ? '<b>Collection vide</b>Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +.'
-      : '<b>Aucun résultat</b>Essayez un autre nom.';
+    if (view === 'ex') {
+      const hint = exScope === 'mine' ? "Vous n'avez publié aucune annonce. Proposez un doublon depuis l'onglet Collection."
+        : exScope === 'interested' ? "Vous n'avez marqué aucun intérêt." : 'Aucune annonce pour le moment.';
+      setEmpty(exError ? 'Échanges indisponibles' : 'Aucune annonce', exError ?? hint);
+    } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +.');
+    else setEmpty('Aucun résultat', 'Essayez un autre nom.');
     if (wasHidden) fx.emptyIn();
   }
 
@@ -382,7 +512,10 @@
     view = v;
     $('tabAll').classList.toggle('on', v === 'all');
     $('tabMine').classList.toggle('on', v === 'mine');
+    $('tabEx').classList.toggle('on', v === 'ex');
     $('tools').hidden = v !== 'mine';
+    $('exBar').hidden = v !== 'ex';
+    if (v === 'ex') exItems = null;
     render();
     scrollTo({ top: 0 });
   }
@@ -401,6 +534,7 @@
   function toggle(item, from) {
     if (inCol(item.src)) {
       collection = collection.filter((c) => c.src !== item.src);
+      reconcileListing(item, true);
       persist(); fx.bump(false);
       syncTiles(item.src, true);
       if (view === 'mine' && !detailOpen) {
@@ -411,7 +545,7 @@
         if (el) fx.out(el, done); else updateMeta();
       }
     } else {
-      collection = [...collection, item];
+      collection = [...collection, { ...item, qty: 1 }];
       persist();
       syncTiles(item.src, true);
       fx.fly(from);
@@ -435,7 +569,7 @@
   function exportJson() {
     const items = collection.map((c) => {
       const p = byId.get(c.id);
-      return { image: c.src, productId: c.id, productName: c.name, productUrl: p?.url, price: p?.price, currency: p?.currency };
+      return { image: c.src, quantity: c.qty, productId: c.id, productName: c.name, productUrl: p?.url, price: p?.price, currency: p?.currency };
     });
     const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), count: items.length, items }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -586,7 +720,8 @@
 
   // ---- Import (appareil photo => hash au chargement ; scanner intégré) ----
   function applyImport(items, mode) {
-    collection = mode === 'merge' ? [...collection, ...items.filter((i) => !inCol(i.src))] : items;
+    const fresh = (list) => list.map((i) => ({ ...i, qty: 1 }));
+    collection = mode === 'merge' ? [...collection, ...fresh(items.filter((i) => !inCol(i.src)))] : fresh(items);
     persist();
     closeSheet();
     if (view === 'mine') render(); else setView('mine');
@@ -679,8 +814,304 @@
   }
   addEventListener('hashchange', importFromHash);
 
+  // ---- Échanges / ventes, intérêts et notifications (Supabase, voir exchange.js) ----
+  const myListings = new Map(); // `${productId}:${index}` -> annonce
+  let exItems = null, exPage = 0, exMore = false, exError = null, exToken = 0, exLoading = false;
+  let exScope = 'all', exKind = '', exInterests = new Set(), exContacts = new Map();
+
+  const kindLabel = (l) => l.kind === 'sale' ? (l.price != null ? `Vente · ${Number(l.price).toLocaleString('fr-FR')} €` : 'Vente') : 'Échange';
+  const field = (label, input) => { const l = mk('label', '', label); l.append(input); return l; };
+  const pillBtn = (label, on, fn) => { const b = mk('button', 'pillbtn' + (on ? ' on' : ''), label); b.onclick = fn; return b; };
+
+  function drawExBar() {
+    const scopes = [['all', 'Toutes'], ['mine', 'Mes annonces'], ['interested', 'Mes intérêts']];
+    $('exScope').replaceChildren(
+      ...scopes.map(([k, l]) => pillBtn(l, exScope === k, () => { exScope = k; drawExBar(); loadEx(true); })),
+      pillBtn('Profil', false, () => askProfile()),
+    );
+    const kinds = [['', 'Tous'], ['exchange', 'Échange'], ['sale', 'Vente']];
+    $('exKind').replaceChildren(...kinds.map(([k, l]) => pillBtn(l, exKind === k, () => { exKind = k; drawExBar(); loadEx(true); })));
+  }
+
+  function exView() {
+    drawExBar();
+    if (exItems) drawEx(true); else loadEx(true);
+  }
+
+  async function loadEx(reset) {
+    const token = ++exToken;
+    if (reset) { exItems = []; exPage = 0; exMore = false; $('grid').replaceChildren(); $('more').hidden = true; }
+    exError = null; exLoading = true;
+    $('empty').hidden = true;
+    $('count').textContent = 'Chargement…';
+    try {
+      const r = await Exchange.listListings({ kind: exKind || undefined, scope: exScope, page: exPage });
+      if (token !== exToken) return;
+      exItems = exItems.concat(r.items);
+      exMore = r.more;
+      exInterests = await Exchange.myInterestIds();
+      const owners = exItems.filter((l) => exInterests.has(l.id)).map((l) => l.owner_id);
+      exContacts = owners.length ? await Exchange.contactsOf(owners) : new Map();
+    } catch (e) {
+      if (token !== exToken) return;
+      exError = e.message;
+    }
+    exLoading = false;
+    if (view === 'ex') drawEx(reset);
+  }
+
+  function drawEx(animate) {
+    const words = norm($('q').value).split(/\s+/).filter(Boolean);
+    found = (exItems ?? []).map((l) => ({ l, p: byId.get(l.product_id) }))
+      .filter(({ l, p }) => p && p.images[l.image_index] && words.every((w) => p.key.includes(w)));
+    const els = found.map(({ l, p }) => exCard(l, p));
+    $('grid').replaceChildren(...els);
+    $('more').hidden = !exMore;
+    updateMeta();
+    if (animate) fx.cardsIn(els);
+  }
+
+  function exCard(l, p) {
+    const src = p.images[l.image_index];
+    const mine = l.owner_id === Exchange.me?.id;
+    const el = mk('article', 'card');
+    el.dataset.listing = l.id;
+    const pic = mk('button', 'pic');
+    pic.setAttribute('aria-label', `Agrandir ${p.name}`);
+    pic.append(img(src, p.name));
+    pic.onclick = () => zoom(src, p.name);
+    const info = mk('div', 'info');
+    const kind = mk('div', 'kindrow');
+    kind.append(mk('span', 'badge ' + l.kind, kindLabel(l)), mk('span', 'qtyb', `×${l.qty}`));
+    info.append(mk('div', 'name', p.name), kind, mk('div', 'owner', `par ${l.owner?.pseudo ?? '?'}`));
+    if (l.note) info.append(mk('div', 'note', l.note));
+    info.append(mk('div', 'contact'));
+    const acts = mk('div', 'acts');
+    if (mine) {
+      const c = collection.find((x) => x.src === src);
+      const edit = mk('button', 'tagbtn ghost', 'Modifier');
+      edit.disabled = !c;
+      edit.onclick = () => openListingSheet(c, l);
+      const del = mk('button', 'tagbtn ghost', 'Retirer');
+      del.onclick = () => removeMyListing(l, el);
+      acts.append(edit, del);
+    } else {
+      const tag = mk('button', 'tagbtn');
+      tag.onclick = () => toggleTag(l, el);
+      acts.append(tag);
+    }
+    info.append(acts);
+    el.append(pic, mk('span', 'ribbon', 'Intéressé'), info);
+    paintTag(el, l);
+    return el;
+  }
+
+  function paintTag(el, l) {
+    const on = exInterests.has(l.id);
+    el.classList.toggle('tagged', on);
+    el.querySelector('.ribbon').hidden = !on;
+    const tag = el.querySelector('.tagbtn:not(.ghost)');
+    if (tag) {
+      tag.classList.toggle('on', on);
+      tag.setAttribute('aria-pressed', on);
+      tag.textContent = on ? '✓ Intéressé·e' : "Ça m'intéresse";
+    }
+    const contact = el.querySelector('.contact'), value = on ? exContacts.get(l.owner_id) : '';
+    contact.hidden = !value;
+    contact.textContent = value ? `Contact : ${value}` : '';
+  }
+
+  async function toggleTag(l, el) {
+    if (!(await requireProfile())) return;
+    const btn = el.querySelector('.tagbtn'), on = !exInterests.has(l.id);
+    btn.disabled = true;
+    try {
+      await Exchange.setInterest(l.id, on);
+      if (on) { exInterests.add(l.id); exContacts = new Map([...exContacts, ...await Exchange.contactsOf([l.owner_id])]); }
+      else exInterests.delete(l.id);
+    } catch (e) { btn.disabled = false; return notice('Action impossible', e.message); }
+    btn.disabled = false;
+    if (!on && exScope === 'interested') {
+      exItems = exItems.filter((x) => x.id !== l.id);
+      found = found.filter((r) => r.l.id !== l.id);
+      return fx.out(el, () => { const s = fx.state(); el.remove(); fx.reflow(s); updateMeta(); });
+    }
+    paintTag(el, l);
+    fx.tag(btn);
+    if (on) fx.ribbonIn(el.querySelector('.ribbon'));
+  }
+
+  async function removeMyListing(l, el) {
+    if (!confirm('Retirer cette annonce ?')) return;
+    try { await Exchange.removeListing(l.id); } catch (e) { return notice('Action impossible', e.message); }
+    myListings.delete(`${l.product_id}:${l.image_index}`);
+    exItems = exItems.filter((x) => x.id !== l.id);
+    found = found.filter((r) => r.l.id !== l.id);
+    fx.out(el, () => { const s = fx.state(); el.remove(); fx.reflow(s); updateMeta(); });
+  }
+
+  // ---- Profil (pseudo + contact), requis à la première écriture ----
+  async function requireProfile() {
+    if (!Exchange.configured) { notice('Échanges indisponibles', "Le service d'échanges n'est pas encore configuré."); return false; }
+    try { if ((Exchange.me ?? await Exchange.loadMe())?.pseudo) return true; }
+    catch (e) { notice('Échanges indisponibles', e.message); return false; }
+    return askProfile();
+  }
+
+  async function askProfile() {
+    if (!Exchange.configured) { notice('Échanges indisponibles', "Le service d'échanges n'est pas encore configuré."); return false; }
+    const m = await Exchange.loadMe().catch(() => null);
+    return new Promise((resolve) => {
+      const pseudo = mk('input'), contact = mk('input');
+      pseudo.maxLength = 20; pseudo.value = m?.pseudo ?? ''; pseudo.autocomplete = 'nickname'; pseudo.placeholder = 'Ex. FigurineFan';
+      contact.maxLength = 120; contact.value = m?.contact ?? ''; contact.placeholder = 'Discord, email… (optionnel)';
+      const err = mk('p', 'warn'); err.hidden = true;
+      let done = false;
+      const finish = (v) => { if (!done) { done = true; resolve(v); } };
+      const save = mkBtn('Enregistrer', 'primary', async () => {
+        save.disabled = true; err.hidden = true;
+        try { await Exchange.saveProfile(pseudo.value, contact.value); finish(true); closeSheet(); initExchange(); }
+        catch (e) { err.textContent = e.message; err.hidden = false; save.disabled = false; }
+      });
+      const btns = mk('div', 'btns');
+      btns.append(save, mkBtn('Annuler', '', () => { finish(false); closeSheet(); }));
+      $('sheet').addEventListener('close', () => finish(false), { once: true });
+      showSheet(
+        mk('h2', '', 'Mon profil'),
+        mk('p', '', "Le pseudo est visible des autres utilisateurs. Le contact n'est montré qu'aux personnes liées à vos annonces par un intérêt."),
+        field('Pseudo (3 à 20 caractères)', pseudo), field('Contact', contact),
+        mk('p', '', 'Votre identité est liée à ce navigateur : vider ses données la fait perdre.'),
+        err, btns,
+      );
+    });
+  }
+
+  // ---- Proposer un doublon (annonce) ----
+  async function openListingSheet(c, existing) {
+    if (!c || !(await requireProfile())) return;
+    const p = byId.get(c.id), index = p ? p.images.indexOf(c.src) : -1;
+    if (index < 0) return notice('Annonce impossible', 'Cette image ne fait plus partie du catalogue.');
+    existing ??= myListings.get(`${c.id}:${index}`);
+    let kind = existing?.kind ?? 'exchange';
+    const max = Math.max(1, c.qty - 1);
+    const qty = mk('select');
+    for (let i = 1; i <= max; i++) qty.append(new Option(String(i), String(i)));
+    qty.value = String(Math.min(existing?.qty ?? 1, max));
+    const price = mk('input'); price.type = 'number'; price.min = '0'; price.max = '99999'; price.step = '0.01'; price.inputMode = 'decimal';
+    price.placeholder = 'Prix en € (optionnel)'; price.value = existing?.price ?? '';
+    const priceField = field('Prix', price);
+    const note = mk('input'); note.maxLength = 140; note.placeholder = 'Ex. contre Molly, état neuf…'; note.value = existing?.note ?? '';
+    const kinds = mk('div', 'pills');
+    const drawKinds = () => {
+      kinds.replaceChildren(pillBtn('Échange', kind === 'exchange', () => { kind = 'exchange'; drawKinds(); }), pillBtn('Vente', kind === 'sale', () => { kind = 'sale'; drawKinds(); }));
+      priceField.hidden = kind !== 'sale';
+    };
+    drawKinds();
+    const err = mk('p', 'warn'); err.hidden = true;
+    const save = mkBtn(existing ? 'Mettre à jour' : 'Publier', 'primary', async () => {
+      const raw = price.value.trim(), n = raw === '' ? null : Number(raw);
+      if (kind === 'sale' && n !== null && !(n >= 0 && n <= 99999)) { err.textContent = 'Prix invalide.'; err.hidden = false; return; }
+      save.disabled = true; err.hidden = true;
+      try {
+        const l = await Exchange.publish({ product_id: c.id, image_index: index, kind, price: n, qty: Number(qty.value), note: note.value.trim() });
+        myListings.set(`${c.id}:${index}`, l);
+        closeSheet(); refreshListed();
+        if (view === 'ex') exItems = null, exView();
+      } catch (e) { err.textContent = e.message; err.hidden = false; save.disabled = false; }
+    });
+    const btns = mk('div', 'btns');
+    btns.append(save);
+    if (existing) btns.append(mkBtn("Retirer l'annonce", '', async () => {
+      try { await Exchange.removeListing(existing.id); myListings.delete(`${c.id}:${index}`); closeSheet(); refreshListed(); if (view === 'ex') exItems = null, exView(); }
+      catch (e) { err.textContent = e.message; err.hidden = false; }
+    }));
+    btns.append(mkBtn('Annuler', '', closeSheet));
+    showSheet(
+      mk('h2', '', 'Proposer à l\'échange ou en vente'),
+      mk('p', '', `${p.name} · vous en avez ${c.qty}, vous pouvez en proposer jusqu'à ${max}.`),
+      kinds, priceField, field("Nombre d'exemplaires proposés", qty), field('Message (optionnel)', note), err, btns,
+    );
+  }
+
+  // ---- Notifications ----
+  let notifList = null;
+
+  async function refreshBadge() {
+    if (!Exchange.configured) return;
+    let n = 0;
+    try { n = await Exchange.unreadCount(); } catch {}
+    const b = $('bellBadge'), prev = Number(b.textContent) || 0;
+    b.textContent = n > 99 ? '99+' : n;
+    b.hidden = !n;
+    if (n > prev) fx.bell();
+  }
+
+  function notifItem(n) {
+    const p = byId.get(n.listing?.product_id), src = p?.images[n.listing?.image_index];
+    const el = mk('div', 'notif' + (n.read ? '' : ' unread'));
+    const body = mk('div', 'body');
+    const what = n.listing?.kind === 'sale' ? 'en vente' : "à l'échange";
+    body.append(
+      mk('div', '', `${n.from?.pseudo ?? 'Quelqu\'un'} est intéressé·e par « ${p?.name ?? 'une annonce'} » (${what})`),
+      mk('div', 'when', new Date(n.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })),
+      mk('div', 'contact', n.contact ? `Contact : ${n.contact}` : "Pas de contact renseigné : répondez via l'annonce."),
+    );
+    const sm = mk('div', 'sm');
+    const act = (label, fn) => { const b = mk('button', '', label); b.onclick = async () => { b.disabled = true; try { await fn(); } catch (e) { notice('Action impossible', e.message); return; } await fillNotifs(); refreshBadge(); }; return b; };
+    if (!n.read) sm.append(act('Marquer lu', () => Exchange.markRead([n.id])));
+    const see = mk('button', '', 'Voir mes annonces');
+    see.onclick = () => { closeSheet(); exScope = 'mine'; exKind = ''; if (view === 'ex') { exItems = null; exView(); } else setView('ex'); };
+    sm.append(see, act('Supprimer', () => Exchange.removeNotifications([n.id])));
+    body.append(sm);
+    el.append(src ? img(src, '') : mk('span'), body);
+    return el;
+  }
+
+  async function fillNotifs() {
+    if (!notifList) return;
+    let rows;
+    try { rows = await Exchange.listNotifications(); } catch (e) { if (notifList) notifList.replaceChildren(mk('p', 'warn', e.message)); return; }
+    if (!notifList) return;
+    if (!rows.length) { notifList.replaceChildren(mk('p', '', 'Aucune notification.')); return; }
+    notifList.replaceChildren(...rows.map(notifItem));
+    fx.notifIn(notifList.children);
+  }
+
+  async function openNotifications() {
+    if (!Exchange.configured) return;
+    notifList = mk('div', 'notifs');
+    notifList.append(mk('p', '', 'Chargement…'));
+    const run = (fn) => async () => { try { await fn(); } catch (e) { notice('Action impossible', e.message); return; } await fillNotifs(); refreshBadge(); };
+    const btns = mk('div', 'btns');
+    btns.append(
+      mkBtn('Tout marquer lu', '', run(() => Exchange.markRead())),
+      mkBtn('Tout supprimer', '', () => { if (confirm('Supprimer toutes les notifications ?')) run(() => Exchange.removeNotifications())(); }),
+      mkBtn('Fermer', '', closeSheet),
+    );
+    showSheet(mk('h2', '', 'Notifications'), notifList, btns);
+    $('sheet').addEventListener('close', () => { notifList = null; }, { once: true });
+    await fillNotifs();
+  }
+
+  let unsubscribe = null;
+  async function initExchange() {
+    if (!Exchange.configured) return;
+    $('bell').hidden = false;
+    try {
+      if (!await Exchange.loadMe()) return;
+      unsubscribe?.();
+      unsubscribe = await Exchange.subscribe(() => { refreshBadge(); fillNotifs(); });
+      refreshBadge();
+      myListings.clear();
+      for (const l of await Exchange.myListingsAll()) myListings.set(`${l.product_id}:${l.image_index}`, l);
+      refreshListed();
+    } catch {}
+  }
+
   $('tabAll').onclick = () => setView('all');
   $('tabMine').onclick = () => setView('mine');
+  $('tabEx').onclick = () => setView('ex');
+  $('bell').onclick = openNotifications;
   $('colShare').onclick = openShare;
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
@@ -691,7 +1122,7 @@
     found = []; shown = 0;
     fx.out(els, () => { $('grid').replaceChildren(); $('more').hidden = true; updateMeta(); });
   };
-  $('more').onclick = () => more(true);
+  $('more').onclick = () => { if (view === 'ex') { exPage++; loadEx(false); } else more(true); };
   $('dlg').addEventListener('click', (e) => { if (e.target === $('dlg') || e.target === $('lb')) $('dlg').close(); });
   let t;
   $('q').addEventListener('input', () => {
@@ -703,6 +1134,7 @@
   render();
   fx.intro();
   importFromHash();
+  initExchange();
 </script>
 </body>
 </html>
