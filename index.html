@@ -79,6 +79,12 @@
   .tile.in { border-color:var(--accent); }
   .tile.in img { opacity:.8; }
   .tile .add { position:absolute; right:8px; bottom:8px; }
+  .tile .wish { position:absolute; left:8px; top:8px; width:44px; height:44px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; padding:0; transition:background .25s, color .25s; }
+  .tile .wish[hidden], #mineSwitch[hidden], #wishTools[hidden] { display:none; }
+  .tile .wish svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .tile .wish.on { background:var(--accent); color:var(--on-accent); }
+  .tile .wish.on svg { fill:currentColor; }
+  #mineSwitch { margin-top:0; }
   .tile .zoom { position:absolute; top:8px; right:8px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; font-size:1rem; }
   #dlg { border:0; padding:0; background:transparent; max-width:100vw; max-height:100vh; max-height:100dvh; width:100%; height:100%; }
   .sheet { border:0; padding:0; background:transparent; width:min(420px, calc(100vw - 32px)); max-width:none; color:var(--text); overflow:visible; }
@@ -197,6 +203,11 @@
   <div id="offline" role="status" hidden>Hors ligne : catalogue, collection et figurines perso restent disponibles ; échanges et partage en ligne nécessitent internet.</div>
   <div id="catalog">
     <div class="meta-row">
+      <div class="pills" id="mineSwitch" hidden></div>
+      <div class="tools" id="wishTools" hidden>
+        <button id="wishShare">Share</button>
+        <button id="wishClean" hidden></button>
+      </div>
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
@@ -229,7 +240,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.1.1';
+  const APP_VERSION = '1.2.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -399,16 +410,56 @@
   const persist = () => {
     try { localStorage.setItem(KEY, JSON.stringify(collection)); } catch {}
     $('pillCount').textContent = collection.length;
+    syncWishUi();
     const shareable = collection.some((c) => !c.custom) || (Exchange.configured && collection.length > 0);
     $('colShare').disabled = !shareable;
     $('colShare').title = !shareable && collection.length ? 'Le partage des figurines perso nécessite le partage en ligne (indisponible).' : '';
   };
 
+  // ---- Wishlist : images {src, id, name} du catalogue (localStorage), sans quantité ni figurine perso ----
+  const WISH_KEY = 'popmart-wishlist';
+  let wishlist = [];
+  try {
+    const seen = new Set();
+    wishlist = (JSON.parse(localStorage.getItem(WISH_KEY)) ?? []).map((w) => {
+      const p = byId.get(w?.id);
+      return p && p.images.includes(w.src) && !seen.has(w.src) && seen.add(w.src) ? { src: w.src, id: p.id, name: p.name } : null;
+    }).filter(Boolean);
+  } catch {}
+  const inWish = (src) => wishlist.some((w) => w.src === src);
+  const persistWish = () => {
+    try { localStorage.setItem(WISH_KEY, JSON.stringify(wishlist)); } catch {}
+    syncWishUi();
+  };
+  function syncWishUi() {
+    const owned = wishlist.filter((w) => inCol(w.src)).length;
+    $('wishShare').disabled = !wishlist.length;
+    $('wishClean').hidden = !owned;
+    $('wishClean').textContent = `Retirer les possédés (${owned})`;
+    drawMineSwitch();
+  }
+  function drawMineSwitch() {
+    $('mineSwitch').replaceChildren(
+      pillBtn(`Collection (${collection.length})`, view !== 'wish', () => setView('mine')),
+      pillBtn(`Wishlist (${wishlist.length})`, view === 'wish', () => setView('wish')),
+    );
+  }
+
   // ---- Affichage ----
-  let view = 'all', found = [], shown = 0, detailOpen = false, savedScroll = 0;
+  let view = 'all', found = [], shown = 0, detailOpen = false, savedScroll = 0; // view : 'all' | 'mine' | 'wish' | 'ex' ('wish' vit dans l'onglet Collection)
 
   const ICONS = '<svg class="i-plus" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' +
                 '<svg class="i-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>';
+
+  const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+
+  // Le cœur est masqué quand l'image est déjà en collection (inutile de la souhaiter)
+  function paintWish(b, src) {
+    const on = inWish(src);
+    b.hidden = inCol(src);
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  }
 
   function addBtn(on, label) {
     const b = document.createElement('button');
@@ -472,6 +523,35 @@
     return el;
   }
 
+  // Carte d'un souhait : déplacer vers la collection, ou retirer ; signale un souhait déjà possédé
+  function wishCard(w) {
+    const el = mk('article', 'card');
+    el.dataset.src = w.src;
+    const pic = mk('button', 'pic');
+    pic.setAttribute('aria-label', `Agrandir ${w.name}`);
+    const pimg = img(w.src, w.name);
+    pic.append(pimg);
+    pic.onclick = () => zoom(w.src, w.name);
+    const info = mk('div', 'info');
+    const row = mk('div', 'row2');
+    const owned = inCol(w.src);
+    const main = mk('button', 'proposer', owned ? 'Retirer des souhaits' : 'Déplacer');
+    main.setAttribute('aria-label', owned ? `Retirer ${w.name} de ma wishlist` : `Déplacer ${w.name} vers ma collection`);
+    main.onclick = () => moveToCollection(w, pimg);
+    row.append(main);
+    if (!owned) {
+      const rm = mk('button', 'sbtn', '✕');
+      rm.setAttribute('aria-label', `Retirer ${w.name} de ma wishlist`);
+      rm.onclick = () => removeWish(w.src);
+      row.append(rm);
+    }
+    info.append(mk('div', 'name', w.name));
+    if (owned) info.append(mk('div', 'listed', '✓ Déjà en collection'));
+    info.append(row);
+    el.append(pic, info);
+    return el;
+  }
+
   const listingKey = (c) => {
     const i = byId.get(c.id)?.images.indexOf(c.src) ?? -1;
     return i < 0 ? null : `${c.id}:${i}`;
@@ -530,7 +610,7 @@
   function render() {
     if (view === 'ex') return exView();
     const words = norm($('q').value).split(/\s+/).filter(Boolean);
-    found = (view === 'mine' ? collection : products).filter((p) => { const key = view === 'mine' ? (byId.get(p.id)?.key ?? norm(p.name)) : p.key; return words.every((w) => key.includes(w)); });
+    found = (view === 'mine' ? collection : view === 'wish' ? wishlist : products).filter((p) => { const key = view === 'mine' || view === 'wish' ? (byId.get(p.id)?.key ?? norm(p.name)) : p.key; return words.every((w) => key.includes(w)); });
     $('grid').replaceChildren();
     shown = 0;
     more(true);
@@ -538,7 +618,7 @@
   }
 
   function more(animate) {
-    const els = found.slice(shown, shown + BATCH).map(view === 'mine' ? colCard : card);
+    const els = found.slice(shown, shown + BATCH).map(view === 'mine' ? colCard : view === 'wish' ? wishCard : card);
     $('grid').append(...els);
     shown = Math.min(shown + BATCH, found.length);
     $('more').hidden = shown >= found.length;
@@ -549,7 +629,7 @@
   const addAction = (name = '') => mkBtn(name ? `Ajouter « ${name} » à ma collection` : 'Ajouter une figurine', 'primary', () => openFigureSheet(null, name));
 
   function updateMeta() {
-    const unit = view === 'mine' ? 'image(s)' : view === 'ex' ? 'annonce(s)' : 'produit(s)';
+    const unit = view === 'mine' ? 'image(s)' : view === 'wish' ? 'souhait(s)' : view === 'ex' ? 'annonce(s)' : 'produit(s)';
     $('count').textContent = `${found.length} ${unit}`;
     const e = $('empty');
     const empty = found.length === 0 && !(view === 'ex' && exLoading);
@@ -561,9 +641,10 @@
         : exScope === 'interested' ? "Vous n'avez marqué aucun intérêt." : 'Aucune annonce pour le moment.';
       setEmpty(exError ? 'Échanges indisponibles' : 'Aucune annonce', exError ?? hint);
     } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +, ou ajoutez votre propre figurine.', addAction());
+    else if (view === 'wish' && !wishlist.length) setEmpty('Wishlist vide', "Ouvrez un produit du catalogue et touchez le cœur sur une image pour l'ajouter à votre wishlist.");
     else {
       const q = $('q').value.trim().slice(0, 80);
-      setEmpty('Aucun résultat', view === 'all' ? 'Introuvable dans le catalogue ? Ajoutez-la vous-même avec une photo.' : 'Essayez un autre nom.', addAction(q));
+      setEmpty('Aucun résultat', view === 'all' ? 'Introuvable dans le catalogue ? Ajoutez-la vous-même avec une photo.' : 'Essayez un autre nom.', ...(view === 'wish' ? [] : [addAction(q)]));
     }
     if (wasHidden) fx.emptyIn();
   }
@@ -603,7 +684,12 @@
       z.className = 'zoom'; z.textContent = '⤢'; z.setAttribute('aria-label', 'Agrandir');
       z.onclick = (e) => { e.stopPropagation(); zoom(src, p.name); };
       const add = addBtn(on, 'Ajouter ou retirer de ma collection');
-      tile.append(pic, z, add);
+      const wish = mk('button', 'wish');
+      wish.innerHTML = HEART;
+      wish.setAttribute('aria-label', 'Ajouter à ma wishlist ou la retirer');
+      wish.onclick = (e) => { e.stopPropagation(); toggleWish(item); };
+      paintWish(wish, src);
+      tile.append(pic, z, wish, add);
       tile.onclick = () => toggle(item, pic);
       $('tiles').append(tile);
     }
@@ -628,9 +714,12 @@
     if (detailOpen) leaveDetail();
     view = v;
     $('tabAll').classList.toggle('on', v === 'all');
-    $('tabMine').classList.toggle('on', v === 'mine');
+    $('tabMine').classList.toggle('on', v === 'mine' || v === 'wish');
     $('tabEx').classList.toggle('on', v === 'ex');
     $('tools').hidden = v !== 'mine';
+    $('wishTools').hidden = v !== 'wish';
+    $('mineSwitch').hidden = v !== 'mine' && v !== 'wish';
+    drawMineSwitch();
     $('exBar').hidden = v !== 'ex';
     if (v === 'ex') exItems = null;
     render();
@@ -645,7 +734,37 @@
       btn.classList.toggle('on', on);
       btn.setAttribute('aria-pressed', on);
       if (animate) { fx.pop(btn, on); fx.tilePulse(t); }
+      paintWish(t.querySelector('.wish'), src);
     }
+  }
+
+  function toggleWish(item) {
+    if (inWish(item.src)) return removeWish(item.src);
+    wishlist = [...wishlist, { src: item.src, id: item.id, name: item.name }];
+    persistWish();
+    syncTiles(item.src, false);
+    const b = [...document.querySelectorAll('.tile')].find((t) => t.dataset.src === item.src)?.querySelector('.wish');
+    if (b) fx.tilePulse(b);
+  }
+
+  function removeWish(src) {
+    if (!inWish(src)) return;
+    wishlist = wishlist.filter((w) => w.src !== src);
+    persistWish();
+    syncTiles(src, false);
+    if (view === 'wish' && !detailOpen) {
+      const el = [...$('grid').children].find((c) => c.dataset.src === src);
+      found = found.filter((f) => f.src !== src);
+      shown = Math.max(0, shown - 1);
+      const done = () => { const st = fx.state(); el.remove(); fx.reflow(st); updateMeta(); };
+      if (el) fx.out(el, done); else updateMeta();
+    }
+  }
+
+  // « Déplacer » = ajouter à la collection (toggle retire alors le souhait) ; si déjà possédé, on retire juste le souhait
+  function moveToCollection(w, from) {
+    if (inCol(w.src)) removeWish(w.src);
+    else toggle({ src: w.src, id: w.id, name: w.name }, from);
   }
 
   function toggle(item, from) {
@@ -667,6 +786,7 @@
       syncTiles(item.src, true);
       fx.fly(from);
       if (!from) fx.bump(false);
+      if (inWish(item.src)) removeWish(item.src);
     }
   }
 
@@ -832,7 +952,8 @@
           productUrl: p?.url, price: p?.price, currency: p?.currency, quantity: c.qty });
       }
     }
-    return { backup: { app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items }, missing };
+    const wish = shrink ? undefined : wishlist.map((w) => ({ productId: w.id, imageIndex: byId.get(w.id)?.images.indexOf(w.src) ?? -1, image: w.src }));
+    return { backup: { app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items, ...(wish ? { wishlist: wish } : {}) }, missing };
   }
 
   async function exportBackup() {
@@ -879,7 +1000,18 @@
         catalog.push({ src, id: p.id, name: p.name, qty });
       }
     }
-    return { catalog, custom, ignored };
+    let wish = null; // null = sauvegarde sans wishlist (anciennes sauvegardes, partages) : la wishlist actuelle n'est pas touchée
+    if (Array.isArray(data.wishlist)) {
+      wish = [];
+      const wseen = new Set();
+      for (const it of data.wishlist.slice(0, 2500)) {
+        const p = it && typeof it.productId === 'string' && ID_RE.test(it.productId) ? byId.get(it.productId) : null;
+        const src = !p ? null : typeof it.image === 'string' && p.images.includes(it.image) ? it.image : Number.isInteger(it.imageIndex) ? p.images[it.imageIndex] : null;
+        if (!src) { ignored++; continue; }
+        if (!wseen.has(src)) { wseen.add(src); wish.push({ src, id: p.id, name: p.name }); }
+      }
+    }
+    return { catalog, custom, ignored, wish };
   }
 
   async function applyBackup(b, mode) {
@@ -904,6 +1036,8 @@
     collection = mode === 'replace' ? [...fresh, ...custom] : [...collection, ...fresh, ...custom];
     if (mode === 'replace') for (const c of old) if (c.custom && !collection.some((n) => n.src === c.src)) photoStore.delete(c.src);
     navigator.storage?.persist?.().catch(() => {});
+    if (b.wish) wishlist = [...wishlist, ...b.wish.filter((w) => !inWish(w.src))]; // la wishlist est toujours fusionnée, jamais remplacée
+    persistWish();
     persist();
     closeSheet();
     if (view === 'mine') render(); else setView('mine');
@@ -913,9 +1047,9 @@
   }
 
   function askBackup(b) {
-    const total = b.catalog.length + b.custom.length;
+    const total = b.catalog.length + b.custom.length + (b.wish?.length ?? 0);
     if (!total) return notice('Sauvegarde vide', 'Aucun élément reconnu dans ce fichier.');
-    const info = `${b.catalog.length} image(s) du catalogue · ${b.custom.length} figurine(s) perso` + (b.ignored ? ` · ${b.ignored} ignoré(s)` : '');
+    const info = `${b.catalog.length} image(s) du catalogue · ${b.custom.length} figurine(s) perso` + (b.wish?.length ? ` · ${b.wish.length} souhait(s)` : '') + (b.ignored ? ` · ${b.ignored} ignoré(s)` : '');
     if (!collection.length) return applyBackup(b, 'replace');
     const btns = mk('div', 'btns');
     btns.append(
@@ -950,7 +1084,7 @@
     const nCustom = collection.filter((c) => c.custom).length;
     showSheet(
       mk('h2', '', 'Sauvegarde de la collection'),
-      mk('p', '', 'Un seul fichier avec vos images, vos quantités et vos figurines perso (photos incluses). Importez-le sur un autre appareil ou après avoir vidé les données du navigateur.'),
+      mk('p', '', 'Un seul fichier avec vos images, vos quantités, votre wishlist et vos figurines perso (photos incluses). Importez-le sur un autre appareil ou après avoir vidé les données du navigateur.'),
       mk('p', '', nCustom ? `${collection.length} élément(s), dont ${nCustom} figurine(s) perso avec photo.` : `${collection.length} élément(s).`),
       btns, file, status,
     );
@@ -1124,13 +1258,13 @@
     } catch { return null; }
   }
 
-  function linkButtons(link) {
+  function linkButtons(link, title = 'Ma collection Pop Mart') {
     const copy = mkBtn('Copier le lien', 'primary', async () => {
       try { await navigator.clipboard.writeText(link); copy.textContent = 'Lien copié'; } catch { copy.textContent = 'Copie impossible'; }
       setTimeout(() => { copy.textContent = 'Copier le lien'; }, 1800);
     });
     const out = [copy];
-    if (navigator.share) out.push(mkBtn('Partager…', '', () => navigator.share({ title: 'Ma collection Pop Mart', url: link }).catch(() => {})));
+    if (navigator.share) out.push(mkBtn('Partager…', '', () => navigator.share({ title, url: link }).catch(() => {})));
     return out;
   }
 
@@ -1174,6 +1308,50 @@
     } catch (e) {
       openLegacyShare(`partage en ligne impossible (${e.message || 'erreur'})`);
     }
+  }
+
+  // Wishlist : lien `#w=` (même charge utile que `#c=`), sans serveur ; seul le catalogue est concerné, pas de photo
+  async function openWishShare() {
+    if (!wishlist.length) return;
+    const { payload, products: np, images } = await encodeCollection(wishlist);
+    const link = BASE_URL + '#w=' + payload;
+    const nodes = [mk('h2', '', 'Partager ma wishlist'), mk('p', '', `${images} image(s) · ${np} produit(s)`)];
+    const qr = qrNode(link);
+    nodes.push(qr ?? mk('p', 'warn', window.qrcode ? 'Wishlist trop grande pour un QR code : utilisez « Copier le lien ».' : 'Générateur de QR code indisponible (hors ligne ?) : utilisez « Copier le lien ».'));
+    if (qr) nodes.push(mk('p', '', "Faites scanner ce QR code avec l'appareil photo ou avec le scanner de l'appli popmart, ou envoyez le lien."));
+    if (qr && link.length > 1100) nodes.push(mk('p', '', "QR code très dense : si le scan échoue, augmentez la luminosité de l'écran ou utilisez « Copier le lien »."));
+    const btns = mk('div', 'btns');
+    btns.append(...linkButtons(link, 'Ma wishlist Pop Mart'), mkBtn('Fermer', '', closeSheet));
+    showSheet(...nodes, btns);
+  }
+
+  function applyWishImport(items, mode) {
+    const mine = new Set(wishlist.map((w) => w.src));
+    const list = items.map((i) => ({ src: i.src, id: i.id, name: i.name }));
+    wishlist = mode === 'replace' ? list : [...wishlist, ...list.filter((i) => !mine.has(i.src))];
+    persistWish();
+    closeSheet();
+    if (view === 'wish') render(); else setView('wish');
+  }
+
+  function askWishImport(items, ignored) {
+    const np = new Set(items.map((i) => i.id)).size;
+    const skipped = ignored ? ` · ${ignored} ignorée(s) (produit inconnu de ce catalogue)` : '';
+    if (!items.length) return notice('Wishlist vide', 'Aucune image reconnue dans ce lien.' + skipped);
+    if (!wishlist.length) { applyWishImport(items, 'replace'); if (ignored) notice('Wishlist importée', `${items.length} image(s)` + skipped); return; }
+    const owned = items.filter((i) => inCol(i.src)).length;
+    const btns = mk('div', 'btns');
+    btns.append(
+      mkBtn('Fusionner', 'primary', () => applyWishImport(items, 'merge')),
+      mkBtn('Remplacer', '', () => { if (confirm(`Remplacer vos ${wishlist.length} souhait(s) par ceux reçus ?`)) applyWishImport(items, 'replace'); }),
+      mkBtn('Annuler', '', closeSheet),
+    );
+    showSheet(
+      mk('h2', '', 'Wishlist reçue'),
+      mk('p', '', `${items.length} image(s) · ${np} produit(s)` + skipped),
+      mk('p', '', `Vous avez déjà ${wishlist.length} souhait(s).` + (owned ? ` ${owned} image(s) reçue(s) sont déjà dans votre collection (elles seront signalées).` : '')),
+      btns,
+    );
   }
 
   // QR sans serveur : images du catalogue uniquement (jamais d'URL d'image ni de photo)
@@ -1243,6 +1421,12 @@
   async function importFromText(text) {
     const sm = /#s=([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})/.exec(text);
     if (sm) return importShare(sm[1], sm[2]);
+    const wm = /#w=([A-Za-z0-9_-]+)/.exec(text);
+    if (wm) {
+      try { const { items, ignored } = await decodeCollection(wm[1]); askWishImport(items, ignored); }
+      catch (e) { notice('Import impossible', e.message || 'Lien invalide'); }
+      return;
+    }
     const m = /#c=([A-Za-z0-9_-]+)/.exec(text);
     try {
       if (!m) throw new Error('Lien invalide');
@@ -1354,8 +1538,8 @@
         try { text = await detect(); } catch {}
         if (scanStream !== stream) return;
         if (text && BARCODE_RE.test(text)) { stopScan(); findByBarcode(text); return; }
-        if (text && /#[cs]=/.test(text)) { stopScan(); importFromText(text); return; }
-        if (text) msg.textContent = "Ce code n'est ni un code-barres produit ni une collection Pop Mart.";
+        if (text && /#[csw]=/.test(text)) { stopScan(); importFromText(text); return; }
+        if (text) msg.textContent = "Ce code n'est ni un code-barres produit ni une collection ou wishlist Pop Mart.";
       }
       requestAnimationFrame(tick);
     };
@@ -1363,7 +1547,7 @@
   }
 
   function importFromHash() {
-    if (!/^#[cs]=/.test(location.hash)) return;
+    if (!/^#[csw]=/.test(location.hash)) return;
     const h = location.hash;
     history.replaceState(null, '', location.pathname + location.search);
     importFromText(h);
@@ -1665,7 +1849,7 @@
   }
 
   $('tabAll').onclick = () => setView('all');
-  $('tabMine').onclick = () => setView('mine');
+  $('tabMine').onclick = () => setView(view === 'wish' ? 'wish' : 'mine');
   $('tabEx').onclick = () => setView('ex');
   $('bell').onclick = openNotifications;
   $('pill').onclick = () => setView('mine');
@@ -1673,6 +1857,8 @@
   $('colAdd').onclick = () => openFigureSheet();
   $('colBackup').onclick = openBackup;
   $('colShare').onclick = openShare;
+  $('wishShare').onclick = openWishShare;
+  $('wishClean').onclick = () => { wishlist = wishlist.filter((w) => !inCol(w.src)); persistWish(); render(); };
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
     const nCustom = collection.filter((c) => c.custom).length;

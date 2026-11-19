@@ -2,6 +2,10 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.2.0 - 2026-11-19
+- Wishlist : cœur sur chaque image du détail d'un produit ; consultation dans l'onglet Collection (bascule Collection | Wishlist) ; « Déplacer » vers la collection ; suppression ; signalement des souhaits déjà en collection (+ « Retirer les possédés ») ; retrait automatique du souhait quand l'image est ajoutée à la collection.
+- Partage de la wishlist par lien et QR code (`#w=`, sans serveur), réception via scanner, lien collé ou appareil photo ; la wishlist est incluse dans la sauvegarde par fichier (jamais dans un partage chiffré).
+
 ## 1.1.1 - 2026-11-19
 - Code-barres absent du catalogue : écran « Produit introuvable » lisible (code scanné en grand, explication, boutons « Scanner un autre code » et « Chercher par nom ») à la place d'un message grisé peu visible.
 

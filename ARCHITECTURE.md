@@ -25,6 +25,7 @@ Le CSS de base cible un écran de **360 à 390 px** ; les `@media (min-width: 64
 
 - **Produit** (`products.js`) : `{ id, name, url, price, currency, images[], … }`. Un « produit » est une série (ex. « … Chibi Series Figures ») qui contient plusieurs images.
 - **Collection** : tableau d'**images**, pas de produits : `[{ src, id, name, qty }]` (`src` = URL de l'image, `id`/`name` = produit d'origine, `qty` = nombre d'exemplaires, 1 à 99, 1 par défaut). Un **doublon** = `qty >= 2` (information : toute image du catalogue peut être proposée dans les échanges, pas seulement les doublons).
+- **Wishlist** (`localStorage` `popmart-wishlist`) : tableau d'**images du catalogue** `[{ src, id, name }]`, sans quantité ni figurine perso. Une image ne peut pas être à la fois en collection et dans les souhaits au moment de l'ajout (voir ci-dessous).
 - Persistance : `localStorage['popmart-collection']`. Au chargement, un ancien format (liste d'identifiants de produits) est converti en images (première image du produit) et `qty` absent vaut 1.
 - La quantité n'est **pas** transmise par le partage QR (format `#c=` v1 inchangé) : un import crée des éléments avec `qty = 1`, une fusion conserve la quantité locale. La sauvegarde par fichier (voir « Sauvegarde et restauration ») contient `quantity`.
 - **Figurine perso** (absente du catalogue) : `{ src: 'local:<uuid>', id: 'local:<uuid>', name, note?, qty, custom: true }`. `src` et `id` valent la même référence, donc tout le code indexé par `src` fonctionne tel quel. La **photo** n'est pas dans le `localStorage` mais dans **IndexedDB** (base `popmart`, store `photos`, clé = uuid, valeur `{ type, data: ArrayBuffer }` du JPEG, plus fiable qu'un `Blob` selon les navigateurs ; la lecture accepte aussi un `Blob`), via le module `photoStore` ; `img()` charge les `local:` depuis ce module. Les photos ne quittent **jamais** l'appareil. Plafond : 200 figurines perso.
@@ -57,6 +58,17 @@ L'en-tête (titre, pastille de compteur, recherche, onglets) est sticky et visib
 5. **Zoom** : `<dialog>` plein écran affichant l'image ; se ferme avec ✕, un clic hors de l'image ou Échap.
 
 La pastille de l'en-tête (un `<button>`, à droite de la cloche) affiche toujours le nombre d'images de la collection et se met à jour immédiatement ; **un clic dessus ouvre l'onglet « Collection »**, comme le bouton d'onglet (y compris depuis le détail d'un produit ou l'onglet Échanges).
+
+## Wishlist (souhaits)
+
+- **Où** : dans l'onglet **Collection** (l'en-tête ne change pas), via la bascule `#mineSwitch` « Collection (n) | Wishlist (n) » ; vue interne `view = 'wish'` (l'onglet Collection reste actif). Outils propres à la wishlist (`#wishTools`) : **Share** et « Retirer les possédés (n) » (visible seulement s'il y a des souhaits déjà en collection).
+- **Ajouter** : bouton **cœur** (`.wish`, en haut à gauche) sur chaque image du détail d'un produit ; `aria-pressed` reflète l'état. Il est **masqué** si l'image est déjà en collection.
+- **Consulter** : `wishCard` (image zoomable, nom, boutons « Déplacer » et ✕). Recherche et compteur « n souhait(s) » comme les autres vues ; état vide « Wishlist vide ».
+- **Déplacer** vers la collection : `moveToCollection` = `toggle` (ajoute l'image avec `qty` 1, animation vers la pastille) ; `toggle` **retire automatiquement le souhait** quand on ajoute une image à la collection, d'où que ce soit (détail ou wishlist).
+- **Détecter un souhait déjà possédé** (import, sauvegarde fusionnée…) : carte marquée « ✓ Déjà en collection », bouton « Retirer des souhaits » à la place de « Déplacer », et « Retirer les possédés (n) » pour tout nettoyer d'un geste.
+- **Supprimer** : ✕ sur la carte, ou recliquer le cœur dans le détail.
+- **Partager** : `openWishShare` → lien `BASE_URL#w=<charge>` (**même charge utile que `#c=`**, `encodeCollection`/`decodeCollection`), QR code, « Copier le lien », « Partager… ». Sans serveur, sans photo. **Réception** (scanner, appareil photo, lien collé, hash au chargement) : `askWishImport` → wishlist vide = import direct, sinon **Fusionner / Remplacer / Annuler** ; vue Wishlist ouverte après import.
+- **Sauvegarde par fichier** : la wishlist est exportée dans la clé optionnelle `wishlist: [{ productId, imageIndex, image }]` (format v1 inchangé, anciens fichiers toujours lisibles). À l'import elle est **toujours fusionnée**, jamais remplacée ; un fichier sans cette clé ne touche pas la wishlist. Le **partage chiffré** (`shrink`) ne contient jamais la wishlist.
 
 ## Partage de la collection (Share / Scanner / Import)
 
@@ -179,3 +191,7 @@ Toutes passent par l'objet `fx` ; la logique métier ne doit jamais dépendre d'
 - [ ] Liens invalides ou produits inconnus : message « ignorée(s) » ou « Import impossible », aucune erreur console.
 - [ ] Collection énorme : message + « Sauvegarde par fichier », pas de QR cassé.
 - [ ] Aucune erreur console ; l'appli fonctionne avec GSAP bloqué.
+- [ ] Wishlist : cœur sur chaque image du détail (masqué si déjà en collection) ; l'ajouter fait apparaître « Wishlist (n) » ; la bascule Collection / Wishlist reste dans l'onglet Collection (aucun scroll horizontal à 360 px).
+- [ ] « Déplacer » met l'image en collection (qty 1) et la retire des souhaits ; ajouter une image souhaitée à la collection depuis le détail la retire aussi des souhaits ; ✕ la supprime ; état vide « Wishlist vide ».
+- [ ] Souhait déjà en collection (ex. après import) : « ✓ Déjà en collection » et « Retirer les possédés (n) » fonctionne.
+- [ ] Share (wishlist) : QR + lien `#w=` ; sur un autre appareil, scanner ou coller le lien -> import direct (wishlist vide) ou Fusionner / Remplacer ; sauvegarde par fichier : la wishlist revient à l'import ; un partage de collection ne contient pas la wishlist.
