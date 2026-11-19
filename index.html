@@ -198,7 +198,7 @@
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
-        <button id="colScan" class="icon" aria-label="Scanner un QR code" title="Scanner un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
+        <button id="colScan" class="icon" aria-label="Scanner un code-barres ou un QR code" title="Scanner un code-barres ou un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
         <button id="colBackup" class="icon" aria-label="Sauvegarde de la collection" title="Sauvegarde de la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
         <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
@@ -227,8 +227,13 @@
 <script>
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  const products = window.PRODUCTS.map((p) => ({ ...p, key: norm(p.name) }));
+  const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
+  // key = nom + codes-barres : la recherche (et un lecteur code-barres USB qui « tape » le code) retrouve aussi par EAN
+  const products = window.PRODUCTS.map((p) => ({ ...p, key: norm(p.name) + ' ' + barcodesOf(p).join(' ') }));
   const byId = new Map(products.map((p) => [p.id, p]));
+  const stripZeros = (c) => c.replace(/^0+/, '');
+  const byBarcode = new Map(); // code (sans zéros de tête : UPC-A = EAN-13 précédé d'un 0) -> produits (une série peut exister en shop et en draw)
+  for (const p of products) for (const c of barcodesOf(p)) { const k = stripZeros(c); byBarcode.set(k, [...(byBarcode.get(k) ?? []), p]); }
   const $ = (id) => document.getElementById(id);
   // Photos des figurines perso : blobs JPEG dans IndexedDB (clé = uuid), jamais envoyées sur le réseau
   const photoStore = (() => {
@@ -516,7 +521,7 @@
   function render() {
     if (view === 'ex') return exView();
     const words = norm($('q').value).split(/\s+/).filter(Boolean);
-    found = (view === 'mine' ? collection : products).filter((p) => words.every((w) => norm(p.name).includes(w)));
+    found = (view === 'mine' ? collection : products).filter((p) => { const key = view === 'mine' ? (byId.get(p.id)?.key ?? norm(p.name)) : p.key; return words.every((w) => key.includes(w)); });
     $('grid').replaceChildren();
     shown = 0;
     more(true);
@@ -571,6 +576,13 @@
     const a = document.createElement('a');
     a.href = p.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Voir sur popmart.com';
     meta.append(a);
+    const codes = new Map();
+    for (const s of p.skus ?? []) if (s.barCode) codes.set(s.barCode, [...(codes.get(s.barCode) ?? []), s.name]);
+    if (codes.size) {
+      const line = document.createElement('div');
+      line.textContent = 'Code-barres : ' + [...codes].map(([c, names]) => codes.size > 1 ? `${c} (${[...new Set(names)].join(', ')})` : c).join(' · ');
+      meta.append(line);
+    }
     for (const src of p.images) {
       const item = { src, id: p.id, name: p.name };
       const on = inCol(src);
@@ -1233,17 +1245,31 @@
 
   const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
 
+  const SCAN_TITLE = 'Scanner';
+  const BARCODE_RE = /^d{8,14}$/;
+
+  // Code-barres -> catalogue : un seul produit = sa fiche ; plusieurs (même série en shop et en draw) = liste filtrée par ce code
+  function findByBarcode(raw) {
+    const code = raw.trim();
+    const hits = byBarcode.get(stripZeros(code));
+    if (!hits) return notice('Code-barres inconnu', `${code} ne correspond à aucun produit du catalogue. Il manque peut-être sur popmart.com (produit à venir, tirage au sort) : cherchez-le par son nom.`);
+    closeSheet();
+    $('q').value = barcodesOf(hits[0]).find((c) => stripZeros(c) === stripZeros(code));
+    if (view !== 'all' || detailOpen) setView('all'); else render();
+    if (hits.length === 1) openDetail(hits[0]);
+  }
+
   async function openScanner() {
     const video = mk('video');
     video.setAttribute('playsinline', ''); video.muted = true;
-    const msg = mk('p', '', "Visez le QR code d'une collection. Si la lecture échoue : rapprochez-vous, agrandissez le QR code, ou collez le lien ci-dessous.");
+    const msg = mk('p', '', "Visez le code-barres d'un produit (pour le retrouver dans le catalogue) ou le QR code d'une collection. Si la lecture échoue : rapprochez-vous, ou saisissez le code / collez le lien ci-dessous.");
     const link = mk('input');
-    link.type = 'text'; link.inputMode = 'url'; link.autocomplete = 'off'; link.placeholder = 'https://…/#…';
-    const go = () => { const v = link.value.trim(); if (v) { stopScan(); importFromText(v); } };
+    link.type = 'text'; link.autocomplete = 'off'; link.placeholder = 'https://…/#…  ou  6923886168562';
+    const go = () => { const v = link.value.trim(); if (!v) return; stopScan(); if (BARCODE_RE.test(v)) findByBarcode(v); else importFromText(v); };
     link.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     const btns = mk('div', 'btns');
     btns.append(mkBtn('Importer le lien', 'primary', go), mkBtn('Fermer', '', closeSheet));
-    showSheet(mk('h2', '', 'Scanner une collection'), video, msg, field('Ou collez le lien de partage', link), btns);
+    showSheet(mk('h2', '', SCAN_TITLE), video, msg, field('Ou saisissez un code-barres, ou collez le lien de partage', link), btns);
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
@@ -1251,36 +1277,40 @@
       msg.textContent = "Caméra indisponible ou refusée. Collez le lien de partage ci-dessous, ou scannez le QR avec l'appareil photo du téléphone.";
       return;
     }
-    if (!$('sheet').open || $('sheetBox').firstChild.textContent !== 'Scanner une collection') { stream.getTracks().forEach((tr) => tr.stop()); return; }
+    if (!$('sheet').open || $('sheetBox').firstChild.textContent !== SCAN_TITLE) { stream.getTracks().forEach((tr) => tr.stop()); return; }
     scanStream = stream;
     video.srcObject = stream;
     await video.play().catch(() => {});
-    // BarcodeDetector existe dans certains navigateurs sans savoir lire les QR (ex. Chrome sur Windows) : on vérifie les formats
-    let native = false;
-    if ('BarcodeDetector' in window) { try { native = (await BarcodeDetector.getSupportedFormats()).includes('qr_code'); } catch {} }
-    let detect;
-    if (native) {
-      const det = new BarcodeDetector({ formats: ['qr_code'] });
-      detect = async () => (await det.detect(video))[0]?.rawValue;
-    } else {
-      try { await loadScript(JSQR_URL); } catch { msg.textContent = 'Décodeur de QR code indisponible (hors ligne ?). Collez le lien de partage ci-dessous.'; return; }
-      const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
-      detect = async () => {
-        const k = Math.min(1, 1280 / video.videoWidth);
-        canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        return window.jsQR(d.data, d.width, d.height, { inversionAttempts: 'dontInvert' })?.data;
-      };
-    }
+    // BarcodeDetector existe dans certains navigateurs sans savoir tout lire (ex. Chrome sur Windows : ni QR ni EAN) : on vérifie les formats.
+    // Codes-barres : lecture native uniquement (Chrome/Android, Edge, Safari récent) ; QR : natif, sinon jsQR.
+    let supported = [];
+    if ('BarcodeDetector' in window) { try { supported = await BarcodeDetector.getSupportedFormats(); } catch {} }
+    const formats = ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e'].filter((f) => supported.includes(f));
+    const nativeQr = formats.includes('qr_code');
+    const det = formats.length ? new BarcodeDetector({ formats }) : null;
+    let jsqrReady = nativeQr;
+    if (!nativeQr) { try { await loadScript(JSQR_URL); jsqrReady = true; } catch {} }
+    if (!det && !jsqrReady) { msg.textContent = 'Décodeur indisponible (hors ligne ?). Saisissez le code-barres ou collez le lien de partage ci-dessous.'; return; }
+    if (!formats.some((f) => f !== 'qr_code')) msg.textContent = "Ce navigateur ne lit pas les codes-barres avec la caméra : saisissez le code ci-dessous (ou tapez-le dans la recherche). Les QR codes restent lisibles.";
+    const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const detect = async () => {
+      const hit = det && (await det.detect(video))[0]?.rawValue;
+      if (hit || nativeQr || !jsqrReady) return hit;
+      const k = Math.min(1, 1280 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return window.jsQR(d.data, d.width, d.height, { inversionAttempts: 'dontInvert' })?.data;
+    };
     const tick = async () => {
       if (scanStream !== stream) return;
       if (video.readyState >= 2 && video.videoWidth) {
         let text;
         try { text = await detect(); } catch {}
         if (scanStream !== stream) return;
+        if (text && BARCODE_RE.test(text)) { stopScan(); findByBarcode(text); return; }
         if (text && /#[cs]=/.test(text)) { stopScan(); importFromText(text); return; }
-        if (text) msg.textContent = "Ce QR code n'est pas une collection Pop Mart.";
+        if (text) msg.textContent = "Ce code n'est ni un code-barres produit ni une collection Pop Mart.";
       }
       requestAnimationFrame(tick);
     };

@@ -2,7 +2,7 @@
 
 Petite application web statique pour rechercher un produit popmart.com par nom, voir toutes ses images et constituer une collection exportable en JSON.
 
-- `list-products.mjs` : récupère le catalogue via l'API publique de popmart.com et génère `products.json` et `products.js` (`node list-products.mjs`)
+- `list-products.mjs` : récupère le catalogue via l'API publique de popmart.com et génère `products.json` et `products.js`, avec les codes-barres EAN par SKU via l'API de détail (`node list-products.mjs`, ~15 s). Le scanner de l'onglet Collection et la barre de recherche retrouvent un produit par son code-barres
 - `index.html` : l'application (la collection est stockée dans le `localStorage`). Animations via GSAP + Flip chargés depuis cdnjs (l'appli reste utilisable sans animation si le CDN est inaccessible ou si `prefers-reduced-motion` est actif)
 - `ARCHITECTURE.md` : comportement attendu de l'application et check-list de non-régression
 - Nettoyage automatique des partages expirés : exécuter `supabase/cleanup.sql` (tâche `pg_cron` toutes les 30 minutes ; sans lui, ils ne sont supprimés qu'à la création d'un nouveau partage).

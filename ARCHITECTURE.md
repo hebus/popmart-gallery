@@ -5,7 +5,7 @@ Document de référence pour éviter les régressions. Toute modification de `in
 ## Vue d'ensemble
 
 - Application statique mobile-first, sans build : `index.html` (HTML, CSS et JS inline) + `products.js` (`window.PRODUCTS`) + `exchange.js` (couche données Supabase des échanges, sans UI) + `supabase/schema.sql` (base et règles de sécurité) + `sw.js`, `manifest.webmanifest` et `icons/` (PWA, voir « PWA et hors-ligne »).
-- `products.js` / `products.json` sont générés par `node list-products.mjs` (API publique popmart.com). Ne pas les éditer à la main.
+- `products.js` / `products.json` sont générés par `node list-products.mjs` (API publique popmart.com : liste `public_FindSummariesByCollectionId` + détail `public_FindOne` par produit, `skus[]`). Ne pas les éditer à la main. Chaque produit porte `skus: [{ name, skuCode, barCode }]` ; `barCode` = EAN-13 ou vide (certains produits « draw » ou à venir). Une blind box a le **même** code pour « Single Box » et « Whole Set » (code de la boîte/série, pas de la figurine) ; 3 codes sont partagés par des produits sans rapport (donnée Pop Mart).
 - Dépendances externes : GSAP + Flip (cdnjs) pour les animations, Google Fonts. L'appli doit rester **entièrement fonctionnelle sans elles** (voir « Animations »).
 - Conception visuelle : palette crème / encre (`--bg`, `--accent`…), mode sombre via `prefers-color-scheme`, cibles tactiles >= 44 px.
 
@@ -70,6 +70,8 @@ Objectif : transférer sa collection vers un autre appareil par QR code, sans se
 - **Import** : collection locale vide -> import direct ; sinon fenêtre **Fusionner** (ajout sans doublon sur `src`) / **Remplacer** (confirmation) / **Annuler**. Après import : onglet « Collection », pastille mise à jour.
 - **Figurines perso et partage** : sans identifiant catalogue, elles ne peuvent pas entrer dans le QR `#c=` (limité à ~2,9 Ko). Elles passent par le **partage chiffré** (section ci-dessous) quand le partage en ligne est configuré ; sinon le QR catalogue les exclut avec un message et seule la **sauvegarde par fichier** les inclut. L'import QR `#c=` « Remplacer » **conserve** les figurines perso ; « Vider » les supprime avec leurs photos. Elles ne peuvent pas être proposées dans l'onglet Échanges (pas de « Proposer »).
 - **Sécurité** : la charge utile est une donnée non fiable. `decodeCollection` valide le préfixe, la taille (déflate plafonné à 200 Ko, anti zip-bomb), la version, le format UUID des ids, l'existence du produit, des indices entiers dans les bornes, <= 2 000 produits / 500 indices par produit ; les éléments invalides sont comptés comme « ignorés ». Les valeurs ne sont jamais insérées via `innerHTML` (seul le SVG du QR, généré localement, l'est).
+- **Scanner = codes-barres + QR** (`openScanner`, bouton de l'onglet Collection, fenêtre « Scanner ») : un code de 8 à 14 chiffres lance `findByBarcode` : un seul produit -> sa fiche ; plusieurs -> catalogue filtré par ce code ; aucun -> message « Code-barres inconnu ». Les codes-barres sont lus uniquement par `BarcodeDetector` natif (ean_13/ean_8/upc_a/upc_e) ; sans lui (Chrome sur Windows, Firefox), message et champ de saisie manuelle (le champ de lien accepte aussi un code). Les QR restent lus en natif ou par `jsQR`.
+- **Recherche par code-barres** : la clé de recherche d'un produit (`key`) contient son nom et ses codes ; taper ou coller un EAN dans la barre de recherche (ou lecteur USB « clavier ») retrouve le produit. La fiche affiche « Code-barres : … ».
 - Sans CDN : `qrcode-generator` absent -> Share propose la sauvegarde par fichier ; `jsQR` absent -> message dans le scanner (le champ de lien collé reste utilisable) ; le reste de l'appli fonctionne.
 
 ## Échanges, intérêts et notifications (Supabase)
@@ -171,6 +173,7 @@ Toutes passent par l'objet `fx` ; la logique métier ne doit jamais dépendre d'
 - [ ] Share : le QR s'affiche, « Copier le lien » donne un lien `…/#c=…` ; ouvert dans un onglet privé il importe la même collection.
 - [ ] Import avec une collection existante : Fusionner (sans doublon) / Remplacer (confirmation) / Annuler ; le hash disparaît de l'URL.
 - [ ] Scanner : lit un QR Share ; la caméra s'éteint (voyant) après le scan et à la fermeture ; refus de caméra = message sans erreur.
+- [ ] Scanner un code-barres (Chrome Android) : produit unique -> fiche ouverte ; code partagé -> liste filtrée ; code inconnu -> message. Saisir un EAN dans le champ ou dans la recherche donne le même résultat (y compris sur PC sans lecture caméra).
 - [ ] Liens invalides ou produits inconnus : message « ignorée(s) » ou « Import impossible », aucune erreur console.
 - [ ] Collection énorme : message + « Sauvegarde par fichier », pas de QR cassé.
 - [ ] Aucune erreur console ; l'appli fonctionne avec GSAP bloqué.
