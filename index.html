@@ -61,6 +61,7 @@
   .burst { position:absolute; inset:-1.5px; border-radius:50%; border:3px solid var(--accent); pointer-events:none; }
   #more { display:block; margin:0 auto 32px; min-height:44px; padding:0 24px; border:0; border-radius:999px; background:var(--accent); color:var(--on-accent); font-weight:700; }
   #more[hidden], #empty[hidden] { display:none; }
+  #ver { color:var(--muted); font-size:.75rem; text-align:center; padding:0 16px calc(24px + env(safe-area-inset-bottom)); }
   #empty { text-align:center; color:var(--muted); padding:56px 0; line-height:1.5; }
   #empty b { display:block; font-family:'Bricolage Grotesque',sans-serif; font-size:1.25rem; color:var(--text); margin-bottom:6px; }
 
@@ -214,6 +215,7 @@
   </div>
   <section id="detail" hidden></section>
 </main>
+<footer id="ver"></footer>
 <div id="install" role="region" aria-label="Installer l'application" hidden></div>
 <dialog id="dlg"><div class="lb" id="lb"></div></dialog>
 <dialog id="sheet" class="sheet" aria-label="Partage de la collection"><div class="box" id="sheetBox"></div></dialog>
@@ -225,6 +227,8 @@
 <script src="products.js"></script>
 <script src="exchange.js"></script>
 <script>
+  // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
+  const APP_VERSION = '1.1.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -235,6 +239,10 @@
   const byBarcode = new Map(); // code (sans zéros de tête : UPC-A = EAN-13 précédé d'un 0) -> produits (une série peut exister en shop et en draw)
   for (const p of products) for (const c of barcodesOf(p)) { const k = stripZeros(c); byBarcode.set(k, [...(byBarcode.get(k) ?? []), p]); }
   const $ = (id) => document.getElementById(id);
+  {
+    const m = window.PRODUCTS_META;
+    $('ver').textContent = `Version ${APP_VERSION}` + (m ? ` · catalogue du ${new Date(m.generatedAt).toLocaleDateString('fr-FR')} (${m.count} produits)` : '');
+  }
   // Photos des figurines perso : blobs JPEG dans IndexedDB (clé = uuid), jamais envoyées sur le réseau
   const photoStore = (() => {
     let dbp = null;
@@ -950,6 +958,7 @@
   // ---- Partage : lien `#c=<charge utile>` (id produit + indices d'images, jamais d'URL d'image) ----
   const BASE_URL = 'https://hebus.github.io/popmart-gallery/';
   const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+  const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'; // codes-barres sans BarcodeDetector (iPhone, Firefox, Chrome PC) ; ~330 Ko, chargé à la demande
   const MAX_PAYLOAD = 200000;
   const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -1282,23 +1291,41 @@
     video.srcObject = stream;
     await video.play().catch(() => {});
     // BarcodeDetector existe dans certains navigateurs sans savoir tout lire (ex. Chrome sur Windows : ni QR ni EAN) : on vérifie les formats.
-    // Codes-barres : lecture native uniquement (Chrome/Android, Edge, Safari récent) ; QR : natif, sinon jsQR.
+    // Codes-barres : natif si possible, sinon ZXing (chargé à la demande) ; QR : natif, sinon jsQR.
     let supported = [];
     if ('BarcodeDetector' in window) { try { supported = await BarcodeDetector.getSupportedFormats(); } catch {} }
     const formats = ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e'].filter((f) => supported.includes(f));
-    const nativeQr = formats.includes('qr_code');
+    const nativeQr = formats.includes('qr_code'), nativeCodes = formats.some((f) => f !== 'qr_code');
     const det = formats.length ? new BarcodeDetector({ formats }) : null;
-    let jsqrReady = nativeQr;
+    let jsqrReady = nativeQr, zxing = null;
     if (!nativeQr) { try { await loadScript(JSQR_URL); jsqrReady = true; } catch {} }
-    if (!det && !jsqrReady) { msg.textContent = 'Décodeur indisponible (hors ligne ?). Saisissez le code-barres ou collez le lien de partage ci-dessous.'; return; }
-    if (!formats.some((f) => f !== 'qr_code')) msg.textContent = "Ce navigateur ne lit pas les codes-barres avec la caméra : saisissez le code ci-dessous (ou tapez-le dans la recherche). Les QR codes restent lisibles.";
+    if (!nativeCodes) {
+      msg.textContent = 'Chargement du lecteur de codes-barres…';
+      try {
+        await loadScript(ZXING_URL);
+        const Z = window.ZXing, hints = new Map();
+        hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8, Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E]);
+        hints.set(Z.DecodeHintType.TRY_HARDER, true);
+        const reader = new Z.MultiFormatReader();
+        reader.setHints(hints);
+        zxing = (c) => { try { return reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(c)))).getText(); } catch { return undefined; } };
+      } catch {}
+    }
+    if (!det && !jsqrReady && !zxing) { msg.textContent = 'Décodeur indisponible (hors ligne ?). Saisissez le code-barres ou collez le lien de partage ci-dessous.'; return; }
+    msg.textContent = zxing || nativeCodes
+      ? "Visez le code-barres d'un produit (pour le retrouver dans le catalogue) ou le QR code d'une collection. Si la lecture échoue : rapprochez-vous, ou saisissez le code / collez le lien ci-dessous."
+      : "Lecteur de codes-barres indisponible (hors ligne ?) : saisissez le code ci-dessous (ou tapez-le dans la recherche). Les QR codes restent lisibles.";
     const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let frame = 0;
     const detect = async () => {
       const hit = det && (await det.detect(video))[0]?.rawValue;
-      if (hit || nativeQr || !jsqrReady) return hit;
+      const useJs = jsqrReady && !nativeQr;
+      if (hit || (!useJs && !zxing)) return hit;
       const k = Math.min(1, 1280 / video.videoWidth);
       canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // un seul décodeur logiciel par image, en alternance, pour ne pas saturer le processeur du téléphone
+      if (zxing && (!useJs || frame++ % 2 === 0)) return zxing(canvas);
       const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
       return window.jsQR(d.data, d.width, d.height, { inversionAttempts: 'dontInvert' })?.data;
     };

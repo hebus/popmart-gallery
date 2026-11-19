@@ -69,6 +69,7 @@ const withCode = products.filter((p) => p.skus?.some((s) => s.barCode)).length;
 const missing = products.filter((p) => !p.skus).length;
 
 writeFileSync('products.json', JSON.stringify(products, null, 2));
-writeFileSync('products.js', `window.PRODUCTS=${JSON.stringify(products)};`); // consommé par index.html
+const meta = { generatedAt: new Date().toISOString(), count: products.length, withBarcode: withCode }; // affiché en pied de page de l'appli
+writeFileSync('products.js', `window.PRODUCTS=${JSON.stringify(products)};window.PRODUCTS_META=${JSON.stringify(meta)};`); // consommé par index.html
 console.log(`${products.length} produits (total annoncé : ${first.total}), ${products.reduce((n, p) => n + p.images.length, 0)} images -> products.json, products.js`);
 console.log(`codes-barres : ${withCode} produits avec au moins un code, ${products.length - withCode - missing} sans code, ${missing} sans détail`);
