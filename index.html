@@ -86,6 +86,7 @@
   .box h2 { margin:0; font-family:'Bricolage Grotesque',sans-serif; font-size:1.25rem; }
   .box p { margin:0; color:var(--muted); font-size:.9rem; line-height:1.4; }
   .box p.warn { color:var(--text); font-weight:700; }
+  .box .code { margin:0; padding:12px; border:2px dashed var(--accent); border-radius:14px; text-align:center; font:700 1.5rem ui-monospace, Menlo, Consolas, monospace; letter-spacing:.06em; color:var(--text); overflow-wrap:anywhere; }
   #qr { background:#fff; padding:12px; border-radius:14px; align-self:center; width:min(100%,380px); }
   #qr svg { display:block; width:100%; height:auto; }
   .box video { width:100%; aspect-ratio:1; object-fit:cover; border-radius:14px; background:#000; }
@@ -228,7 +229,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.1.1';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -1257,11 +1258,28 @@
   const SCAN_TITLE = 'Scanner';
   const BARCODE_RE = /^d{8,14}$/;
 
+  // Code-barres absent du catalogue : écran dédié et lisible (code en grand, cause probable, actions) plutôt qu'un simple message grisé
+  function unknownBarcode(code) {
+    const btns = mk('div', 'btns');
+    btns.append(
+      mkBtn('Scanner un autre code', 'primary', openScanner),
+      mkBtn('Chercher par nom', '', () => { closeSheet(); if (detailOpen) leaveDetail(); $('q').value = ''; if (view !== 'all') setView('all'); else render(); $('q').focus(); }),
+      mkBtn('Fermer', '', closeSheet),
+    );
+    showSheet(
+      mk('h2', '', 'Produit introuvable'),
+      mk('div', 'code', code),
+      mk('p', 'warn', "Ce code-barres n'est pas dans le catalogue de l'appli."),
+      mk('p', '', "Pop Mart ne renseigne pas toujours le code-barres sur popmart.com (produit à venir, tirage au sort, nouveauté). Cherchez la figurine par son nom, ou ajoutez-la vous-même avec une photo depuis l'onglet Collection."),
+      btns,
+    );
+  }
+
   // Code-barres -> catalogue : un seul produit = sa fiche ; plusieurs (même série en shop et en draw) = liste filtrée par ce code
   function findByBarcode(raw) {
     const code = raw.trim();
     const hits = byBarcode.get(stripZeros(code));
-    if (!hits) return notice('Code-barres inconnu', `${code} ne correspond à aucun produit du catalogue. Il manque peut-être sur popmart.com (produit à venir, tirage au sort) : cherchez-le par son nom.`);
+    if (!hits) return unknownBarcode(code);
     closeSheet();
     $('q').value = barcodesOf(hits[0]).find((c) => stripZeros(c) === stripZeros(code));
     if (view !== 'all' || detailOpen) setView('all'); else render();
