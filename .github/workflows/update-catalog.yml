@@ -1,0 +1,52 @@
+# Rafraîchit chaque jour le catalogue (products.json / products.js) depuis popmart.com/fr, puis le commite s'il a changé.
+# GitHub Pages republie ensuite le site ; l'appli (service worker « réseau d'abord ») récupère le catalogue à jour dès qu'elle est en ligne.
+# Lancement manuel possible : onglet Actions > « Mise à jour du catalogue » > Run workflow (option « force » pour passer le garde-fou).
+name: Mise à jour du catalogue
+
+on:
+  schedule:
+    - cron: '17 4 * * *'   # tous les jours à 04:17 UTC (heure creuse, hors pile de l'heure)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Passer outre le garde-fou (baisse de plus de 20 % du nombre de produits)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-catalog
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Échoue (code 1, rien n'est modifié) si l'API renvoie une réponse manifestement partielle.
+      - name: Récupérer le catalogue
+        env:
+          FORCE: ${{ inputs.force && '1' || '' }}
+        run: node list-products.mjs
+
+      # products.js contient la date de génération : on ne regarde que products.json pour décider s'il y a du nouveau.
+      - name: Commiter si le catalogue a changé
+        run: |
+          if git diff --quiet -- products.json; then
+            echo "Catalogue inchangé."
+            git checkout -- products.js
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add products.json products.js
+          git commit -m "chore(catalogue): mise à jour automatique du $(date -u +%F)"
+          git push

@@ -302,13 +302,15 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.7.2';
+  const APP_VERSION = '1.8.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
   // key = nom + codes-barres : la recherche (et un lecteur code-barres USB qui « tape » le code) retrouve aussi par EAN
   const products = window.PRODUCTS.map((p) => ({ ...p, key: norm(p.name) + ' ' + barcodesOf(p).join(' ') }));
   const byId = new Map(products.map((p) => [p.id, p]));
+  // Produits retirés du site (`retired`, voir catalog-merge.mjs) : masqués du catalogue mais toujours résolus par byId / byBarcode (collection, partages, codes-barres)
+  const liveProducts = products.filter((p) => !p.retired);
   const stripZeros = (c) => c.replace(/^0+/, '');
   const byBarcode = new Map(); // code (sans zéros de tête : UPC-A = EAN-13 précédé d'un 0) -> produits (une série peut exister en shop et en draw)
   for (const p of products) for (const c of barcodesOf(p)) { const k = stripZeros(c); byBarcode.set(k, [...(byBarcode.get(k) ?? []), p]); }
@@ -741,7 +743,7 @@
         : inFolder ? folderItems(openFolder)
         : [...folderEntries(folders), ...collection.filter((c) => !c.folder)];
       drawFolderBar(inFolder);
-    } else found = (view === 'wish' ? wishlist : products).filter(match);
+    } else found = (view === 'wish' ? wishlist : liveProducts).filter(match);
     $('grid').replaceChildren();
     shown = 0;
     more(true);
@@ -799,6 +801,7 @@
     const a = document.createElement('a');
     a.href = p.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Voir sur popmart.com';
     meta.append(a);
+    if (p.retired) meta.append(document.createElement('br'), "Ce produit n'est plus proposé sur popmart.com.");
     const codes = new Map();
     for (const s of p.skus ?? []) if (s.barCode) codes.set(s.barCode, [...(codes.get(s.barCode) ?? []), s.name]);
     if (codes.size) {

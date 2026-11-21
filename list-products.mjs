@@ -1,5 +1,6 @@
 // Liste tous les produits popmart.com (zone FR) via l'API publique observée dans le HAR.
 import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mergeCatalog, suspiciousDrop } from './catalog-merge.mjs';
 
 const API = 'https://prod-uk-online-api.popmart.com/rpc/ec/spu/public_FindSummariesByCollectionId';
 const ALL_PRODUCTS = 'e65509b9-1ae7-4f57-81de-4f05c412bddf'; // collection "Tous les produits"
@@ -29,6 +30,8 @@ const rpc = async (url, json) => {
 
 const post = (page) => rpc(API, { page, pageSize: PAGE_SIZE, sortWay: 'recommend', businessTypes: ['shop', 'draw'], categoryId: [], ipId: [], includeAllOptions: true, collectionId: ALL_PRODUCTS });
 
+const previousList = existsSync('products.json') ? JSON.parse(readFileSync('products.json', 'utf8')) : [];
+
 const first = await post(1);
 const pages = [first];
 for (let p = 2; p <= first.totalPages; p++) pages.push(await post(p));
@@ -47,9 +50,14 @@ const products = pages.flatMap((pg) => pg.items.flatMap((g) => g.items)).map((p)
   images: [...new Set([pick(p.npcImages_trans), ...(p.bannerImages ?? []).map((b) => pick(b.link_trans)), ...Object.values(p.sceneImages_trans ?? {}).flat()].filter((u) => typeof u === 'string' && u))],
 }));
 
+if (suspiciousDrop(products.length, previousList) && !process.env.FORCE) {
+  console.error(`Arrêt : ${products.length} produits reçus contre ${previousList.filter((p) => !p.retired).length} connus (baisse de plus de 20 %, réponse partielle ?). Rien n'est modifié. FORCE=1 pour passer outre.`);
+  process.exit(1);
+}
+
 // Codes-barres : un appel de détail par produit (skus[].barCode, EAN-13 ; vide pour certains produits « draw » / à venir).
 // Les blind box partagent un seul code pour « Single Box » et « Whole Set ». En cas d'échec, on garde les skus du précédent products.json.
-const previous = existsSync('products.json') ? new Map(JSON.parse(readFileSync('products.json', 'utf8')).map((p) => [p.id, p.skus])) : new Map();
+const previous = new Map(previousList.map((p) => [p.id, p.skus]));
 const fetchSkus = async (p) => {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -68,8 +76,14 @@ await Promise.all(Array.from({ length: CONCURRENCY }, async () => {
 const withCode = products.filter((p) => p.skus?.some((s) => s.barCode)).length;
 const missing = products.filter((p) => !p.skus).length;
 
-writeFileSync('products.json', JSON.stringify(products, null, 2));
-const meta = { generatedAt: new Date().toISOString(), count: products.length, withBarcode: withCode }; // affiché en pied de page de l'appli
-writeFileSync('products.js', `window.PRODUCTS=${JSON.stringify(products)};window.PRODUCTS_META=${JSON.stringify(meta)};`); // consommé par index.html
+const merged = mergeCatalog(products, previousList);
+const nRetired = merged.length - products.length;
+const knownIds = new Set(previousList.map((p) => p.id));
+const nNew = products.filter((p) => !knownIds.has(p.id)).length;
+
+writeFileSync('products.json', JSON.stringify(merged, null, 2));
+const meta = { generatedAt: new Date().toISOString(), count: products.length, withBarcode: withCode, retired: nRetired }; // affiché en pied de page de l'appli ; count = produits en vente
+writeFileSync('products.js', `window.PRODUCTS=${JSON.stringify(merged)};window.PRODUCTS_META=${JSON.stringify(meta)};`); // consommé par index.html
+console.log(`catalogue : ${nNew} nouveau(x), ${nRetired} retiré(s) conservé(s)`);
 console.log(`${products.length} produits (total annoncé : ${first.total}), ${products.reduce((n, p) => n + p.images.length, 0)} images -> products.json, products.js`);
 console.log(`codes-barres : ${withCode} produits avec au moins un code, ${products.length - withCode - missing} sans code, ${missing} sans détail`);
