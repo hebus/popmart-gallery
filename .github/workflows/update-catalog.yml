@@ -37,12 +37,12 @@ jobs:
           FORCE: ${{ inputs.force && '1' || '' }}
         run: node list-products.mjs
 
-      # products.js contient la date de génération : on ne regarde que products.json pour décider s'il y a du nouveau.
+      # On commite seulement s'il y a un vrai changement : le stock et les tags (OUT_OF_STOCK…) varient tout le temps et sont ignorés,
+      # tout comme la date de génération de products.js (voir scripts/catalog-unchanged.mjs).
       - name: Commiter si le catalogue a changé
         run: |
-          if git diff --quiet -- products.json; then
-            echo "Catalogue inchangé."
-            git checkout -- products.js
+          if node scripts/catalog-unchanged.mjs; then
+            git checkout -- products.json products.js
             exit 0
           fi
           git config user.name "github-actions[bot]"

@@ -302,7 +302,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.8.0';
+  const APP_VERSION = '1.8.1';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];

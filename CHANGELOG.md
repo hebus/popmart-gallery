@@ -2,6 +2,9 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.8.1 - 2026-11-21
+- Mise à jour automatique du catalogue : le stock et les tags (OUT_OF_STOCK, COMING_SOON, NEW), qui changent sans cesse, sont ignorés pour décider de commiter ; plus de commit quotidien pour du simple bruit de stock.
+
 ## 1.8.0 - 2026-11-21
 - Catalogue mis à jour automatiquement chaque jour depuis popmart.com/fr (GitHub Actions, `.github/workflows/update-catalog.yml`) : commit seulement si le catalogue change, lancement manuel possible.
 - Fusion avec le catalogue précédent : un produit déjà connu n'est jamais supprimé ; s'il n'est plus sur le site il est conservé (`retired`), masqué du catalogue mais toujours résolu dans les collections, partages et recherches par code-barres, avec la mention « n'est plus proposé sur popmart.com » dans sa fiche.
