@@ -6,7 +6,7 @@
     "price": 15,
     "currency": "EUR",
     "tags": [
-      "COMING_SOON"
+      "NEW"
     ],
     "stock": 2,
     "businessType": "draw",
@@ -90,7 +90,7 @@
     "price": 15,
     "currency": "EUR",
     "tags": [
-      "COMING_SOON"
+      "NEW"
     ],
     "stock": 2,
     "businessType": "shop",
@@ -134,7 +134,7 @@
     "price": 15,
     "currency": "EUR",
     "tags": [
-      "COMING_SOON"
+      "NEW"
     ],
     "stock": 2,
     "businessType": "shop",
@@ -179,7 +179,7 @@
     "price": 20,
     "currency": "EUR",
     "tags": [
-      "COMING_SOON"
+      "NEW"
     ],
     "stock": 2,
     "businessType": "shop",
@@ -208,7 +208,7 @@
       },
       {
         "name": "Whole Set",
-        "skuCode": "CNP01003911417014*6",
+        "skuCode": "CNP01003911417014*8",
         "barCode": "6923886138497"
       }
     ]
@@ -716,9 +716,10 @@
     "price": 67,
     "currency": "EUR",
     "tags": [
+      "OUT_OF_STOCK",
       "NEW"
     ],
-    "stock": 1,
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2026-11-06T11:00:00.000Z",
     "images": [
@@ -1017,10 +1018,9 @@
     "price": 18,
     "currency": "EUR",
     "tags": [
-      "OUT_OF_STOCK",
       "NEW"
     ],
-    "stock": 0,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-11-06T11:00:00.000Z",
     "images": [
@@ -1087,10 +1087,9 @@
     "price": 15,
     "currency": "EUR",
     "tags": [
-      "OUT_OF_STOCK",
       "NEW"
     ],
-    "stock": 0,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-11-06T11:00:00.000Z",
     "images": [
@@ -1360,10 +1359,9 @@
     "price": 18,
     "currency": "EUR",
     "tags": [
-      "OUT_OF_STOCK",
       "NEW"
     ],
-    "stock": 0,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-10-30T11:00:00.000Z",
     "images": [
@@ -1681,8 +1679,10 @@
     "url": "https://www.popmart.com/fr/products/63ebb8c3-c032-4219-9351-18ec7e8fb2ca/baby-molly-baby-tabby-series-cat-ear-cup",
     "price": 20,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2025-05-23T02:00:00.000Z",
     "images": [
@@ -3143,10 +3143,8 @@
     "url": "https://www.popmart.com/fr/products/83aa9582-57e0-4469-98ba-466b7d50be62/hirono-tamed-wildgrass-series-figures",
     "price": 15,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-04-03T10:00:00.000Z",
     "images": [
@@ -3516,10 +3514,8 @@
     "url": "https://www.popmart.com/fr/products/f16ac91d-80db-4da4-84e3-51c31ac3566c/star-wars-grogu-tiny-but-mighty-series-figures",
     "price": 15,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-03-13T10:00:00.000Z",
     "images": [
@@ -4272,8 +4268,10 @@
     "url": "https://www.popmart.com/fr/products/74bc0c7f-b581-4f43-8e1a-7b80ea474d88/bikini-bottom-buddies-whimsical-plush",
     "price": 16,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2025-05-16T02:00:00.000Z",
     "images": [
@@ -4657,7 +4655,7 @@
     "price": 15,
     "currency": "EUR",
     "tags": [],
-    "stock": 1,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-12-12T10:00:00.000Z",
     "images": [
@@ -5007,7 +5005,7 @@
     "price": 18,
     "currency": "EUR",
     "tags": [],
-    "stock": 1,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-06-12T10:00:00.000Z",
     "images": [
@@ -6532,8 +6530,10 @@
     "url": "https://www.popmart.com/fr/products/fed51f19-c109-47f2-a5c0-6ccbedc6e42a/nyota-i-am-the-seasons-series-figures",
     "price": 15,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2025-07-25T02:00:00.000Z",
     "images": [
@@ -6693,7 +6693,7 @@
     "price": 15,
     "currency": "EUR",
     "tags": [],
-    "stock": 2,
+    "stock": 1,
     "businessType": "shop",
     "saleStartAt": "2026-01-23T10:00:00.000Z",
     "images": [
@@ -8367,8 +8367,10 @@
     "url": "https://www.popmart.com/fr/products/5d158a71-b7dd-4dfe-9099-73b9a5e474ce/the-monsters-classic-series-plush-flower-bag",
     "price": 32,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2024-10-25T02:00:00.000Z",
     "images": [
@@ -8400,10 +8402,8 @@
     "url": "https://www.popmart.com/fr/products/d9456427-e91f-4fc5-a9f0-6aa0477dc0ef/mega-space-molly-400-sanrio-characters-series",
     "price": 216,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2024-10-25T02:00:00.000Z",
     "images": [
@@ -8507,8 +8507,10 @@
     "url": "https://www.popmart.com/fr/products/7b314184-0348-4875-bbef-dc17759ce4ba/hirono-search-for-aliens-figurine",
     "price": 120,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2025-08-29T10:00:00.000Z",
     "images": [
@@ -8561,10 +8563,8 @@
     "url": "https://www.popmart.com/fr/products/36f14132-40cf-4e87-8d09-890d990bd2ff/hearthstone-legends-in-tavern-series-figures",
     "price": 23,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-11-28T10:00:00.000Z",
     "images": [
@@ -9238,7 +9238,7 @@
     "price": 36,
     "currency": "EUR",
     "tags": [],
-    "stock": 1,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-09-26T10:00:00.000Z",
     "images": [
@@ -10427,10 +10427,8 @@
     "url": "https://www.popmart.com/fr/products/ac5203e8-b83f-493d-b004-aa4379498b48/skullpanda-the-paradox-series-fridge-magnet",
     "price": 16,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-06-27T02:00:00.000Z",
     "images": [
@@ -11817,7 +11815,7 @@
     "price": 36,
     "currency": "EUR",
     "tags": [],
-    "stock": 1,
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-04-03T10:00:00.000Z",
     "images": [
@@ -12343,10 +12341,8 @@
     "url": "https://www.popmart.com/fr/products/e1757f66-6c5e-4a03-b3c1-527b0e167f48/zimomo-warm-sweater-figure",
     "price": 36,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-12-12T10:00:00.000Z",
     "images": [
@@ -15386,14 +15382,12 @@
   },
   {
     "id": "775a3138-210c-4e5c-a659-1574725ddd07",
-    "name": "POP BEAN Macaron Set",
+    "name": "POP BEAN Macaron Set France Exclusive",
     "url": "https://www.popmart.com/fr/products/775a3138-210c-4e5c-a659-1574725ddd07/pop-bean-macaron-set",
     "price": 15,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2024-11-01T02:00:00.000Z",
     "images": [
@@ -16636,10 +16630,8 @@
     "url": "https://www.popmart.com/fr/products/ce1b4691-cce3-4c36-9460-9149c1cddedc/dimoo-crush-on-coffee-series-acrylic-fridge-magnet-clip-blind-box",
     "price": 9,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-08-08T02:00:00.000Z",
     "images": [
@@ -17457,10 +17449,8 @@
     "url": "https://www.popmart.com/fr/products/9f528019-3375-4598-add2-54692fe66529/disney-mickey-remixed-mickey-meets-pixar-series-figures",
     "price": 15,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-10-24T10:00:00.000Z",
     "images": [
@@ -20491,10 +20481,8 @@
     "url": "https://www.popmart.com/fr/products/aa06a8c8-3df1-4f15-80df-fd3edbacac9f/skullpanda-where-time-dwells-series-figures-blind-box",
     "price": 15,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-09-18T10:00:00.000Z",
     "images": [
@@ -20940,8 +20928,10 @@
     "url": "https://www.popmart.com/fr/products/7dc90404-7df8-4519-a075-f861c77e66bc/aespa-memorable-picks-series-figures",
     "price": 15,
     "currency": "EUR",
-    "tags": [],
-    "stock": 2,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "draw",
     "saleStartAt": "2026-09-25T12:00:00.000Z",
     "images": [
@@ -21755,8 +21745,10 @@
     "url": "https://www.popmart.com/fr/products/35422453-e794-4eff-b87d-cdfebbd34736/mega-space-molly-400-jon-burgerman",
     "price": 240,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2025-07-11T11:00:00.000Z",
     "images": [
@@ -22749,10 +22741,8 @@
     "url": "https://www.popmart.com/fr/products/7e5e4a5d-a42e-4d07-b6cb-a7fdb1036cfe/celebrating-the-moment-series-scented-candle-blind-box",
     "price": 23,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-03-09T13:00:00.000Z",
     "images": [
@@ -23834,8 +23824,10 @@
     "url": "https://www.popmart.com/fr/products/b4bec678-4a35-4a82-b7f5-d307231fa119/dimoo-world-pixar-series-vinyl-plush-pendant-blind-box",
     "price": 23,
     "currency": "EUR",
-    "tags": [],
-    "stock": 1,
+    "tags": [
+      "OUT_OF_STOCK"
+    ],
+    "stock": 0,
     "businessType": "shop",
     "saleStartAt": "2026-07-17T10:00:00.000Z",
     "images": [
@@ -24067,10 +24059,8 @@
     "url": "https://www.popmart.com/fr/products/15de124a-d4e0-4787-a2cf-3853be3d35d2/dimoo-the-missing-day-series-scented-candle-blind-box",
     "price": 29,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2025-09-19T10:00:00.000Z",
     "images": [
@@ -24173,7 +24163,7 @@
     "price": 18,
     "currency": "EUR",
     "tags": [],
-    "stock": 2,
+    "stock": 1,
     "businessType": "shop",
     "saleStartAt": "2026-07-03T10:00:00.000Z",
     "images": [
@@ -24340,10 +24330,8 @@
     "url": "https://www.popmart.com/fr/products/f4e1c41c-e426-40c3-b5d8-a7e79cda6b21/twinkle-twinkle-crush-on-you-series-love-potion-fragrance-gift-box",
     "price": 45,
     "currency": "EUR",
-    "tags": [
-      "OUT_OF_STOCK"
-    ],
-    "stock": 0,
+    "tags": [],
+    "stock": 2,
     "businessType": "shop",
     "saleStartAt": "2026-02-13T12:00:00.000Z",
     "images": [
