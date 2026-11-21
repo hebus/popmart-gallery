@@ -131,7 +131,13 @@
   .iconbtn[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
   .iconbtn svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   #bellBadge { position:absolute; top:-4px; right:-4px; min-width:20px; height:20px; padding:0 5px; border-radius:999px; background:#d93025; color:#fff; font-size:.7rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
-  .tab { padding:0 8px; font-size:.9rem; }
+  .tab { padding:0 8px; font-size:.9rem; white-space:nowrap; flex:1 1 auto; min-width:0; }
+  /* 4 onglets : à 360 px le libellé en gras de l'onglet actif est plus large, on resserre pour qu'il reste sur une ligne */
+  @media (max-width:420px) {
+    .tabs { gap:6px; }
+    .tab { padding:0 6px; font-size:.84rem; }
+    .tab.icon { min-width:52px; padding:0 8px; gap:4px; }
+  }
   .pills { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
   .pillbtn { min-height:44px; padding:0 14px; border-radius:999px; border:1.5px solid var(--border); background:var(--card); color:var(--text); font-size:.9rem; transition:background .25s, color .25s, border-color .25s; }
   .pillbtn.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
@@ -291,7 +297,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.5.1';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];

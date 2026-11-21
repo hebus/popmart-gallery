@@ -2,6 +2,9 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.5.1 - 2026-11-21
+- Correctif : les onglets Catalogue et Collection passaient sur deux lignes quand ils étaient sélectionnés (libellé en gras plus large avec quatre onglets) ; retour à la ligne interdit et onglets resserrés sous 420 px.
+
 ## 1.5.0 - 2026-11-21
 - Transfert direct d'un appareil à l'autre (WebRTC) : QR code à scanner, connexion directe chiffrée, sans plafond de taille, photos en pleine qualité, dossiers et wishlist inclus, rien n'est stocké en ligne. Mise en relation par Supabase Realtime avec des messages chiffrés par une clé qui reste dans le lien.
 
