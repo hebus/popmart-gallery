@@ -32,6 +32,7 @@
   #pill { display:flex; align-items:center; gap:6px; min-height:44px; background:var(--accent); color:var(--on-accent); border:0; border-radius:999px; padding:0 14px; font-weight:700; font-size:.95rem; }
   #pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   #pillCount { display:inline-block; }
+  #pill.on { outline:2px solid var(--accent); outline-offset:2px; }
   .search { display:flex; align-items:center; gap:8px; }
   #scanBtn { flex:none; width:48px; height:48px; border-radius:14px; }
   #q { flex:1; min-width:0; height:48px; padding:0 16px; font-size:1rem; font-family:inherit; border:1.5px solid var(--border); border-radius:14px; background:var(--card); color:var(--text); }
@@ -89,6 +90,7 @@
   .tab.icon { flex:none; min-width:60px; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:0 12px; }
   .tab.icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
   .tab.icon.on svg { fill:currentColor; }
+  .tab:disabled { opacity:.45; cursor:not-allowed; }
   #wishN { font-size:.85rem; font-weight:700; }
   .tile .zoom { position:absolute; top:8px; right:8px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; font-size:1rem; }
   #dlg { border:0; padding:0; background:transparent; max-width:100vw; max-height:100vh; max-height:100dvh; width:100%; height:100%; }
@@ -247,9 +249,9 @@
     </div>
     <div class="tabs">
       <button class="tab on" id="tabAll">Catalogue</button>
-      <button class="tab" id="tabMine">Collection</button>
       <button class="tab" id="tabEx">Échanges</button>
       <button class="tab icon" id="tabWish" aria-label="Wishlist" title="Wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span id="wishN">0</span></button>
+      <button class="tab icon" id="shareBtn" aria-label="Partager" title="Partager"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button>
     </div>
   </div>
 </div>
@@ -258,12 +260,10 @@
   <div id="catalog">
     <div class="meta-row">
       <div class="tools" id="wishTools" hidden>
-        <button id="wishShare">Share</button>
         <button id="wishClean" hidden></button>
       </div>
       <div class="tools" id="tools" hidden>
-        <button id="colAdd" class="primary">+ Ajouter</button>
-        <button id="colShare">Share</button>
+        <button id="colAdd" class="icon primary" aria-label="Ajouter une figurine" title="Ajouter une figurine"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
         <button id="colSync" class="icon" aria-label="Transfert direct vers un autre appareil" title="Transfert direct (appareil à appareil)"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h12M16 3l4 4-4 4M17 17H5M8 13l-4 4 4 4"/></svg></button>
         <button id="colNewFolder" class="icon" aria-label="Nouveau dossier" title="Nouveau dossier"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M12 11v6M9 14h6"/></svg></button>
         <button id="colSelect" class="icon" aria-label="Sélectionner des images" title="Sélectionner des images" aria-pressed="false"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></button>
@@ -301,7 +301,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.6.0';
+  const APP_VERSION = '1.7.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -491,10 +491,27 @@
     try { localStorage.setItem(KEY, JSON.stringify(collection)); localStorage.setItem(FOLDER_KEY, JSON.stringify(folders)); } catch {}
     $('pillCount').textContent = collection.length;
     syncWishUi();
-    const shareable = collection.some((c) => !c.custom) || (Exchange.configured && collection.length > 0);
-    $('colShare').disabled = !shareable;
-    $('colShare').title = !shareable && collection.length ? 'Le partage des figurines perso nécessite le partage en ligne (indisponible).' : '';
+    syncShareBtn();
   };
+
+  // Bouton Partager de l'en-tête : partage ce que montre la vue ouverte (collection ou wishlist) ; invisible ailleurs
+  // (visibility et non display : les onglets ne changent pas de largeur d'une vue à l'autre)
+  function syncShareBtn() {
+    const b = $('shareBtn'), on = view === 'mine' || view === 'wish';
+    b.style.visibility = on ? '' : 'hidden';
+    b.tabIndex = on ? 0 : -1;
+    b.setAttribute('aria-hidden', String(!on));
+    let label = 'Partager', disabled = !on;
+    if (view === 'wish') { label = 'Partager ma wishlist'; disabled = !wishlist.length; }
+    else if (view === 'mine') {
+      const shareable = collection.some((c) => !c.custom) || (Exchange.configured && collection.length > 0);
+      label = !shareable && collection.length ? 'Le partage des figurines perso nécessite le partage en ligne (indisponible).' : 'Partager ma collection';
+      disabled = !shareable;
+    }
+    b.disabled = disabled;
+    b.title = label;
+    b.setAttribute('aria-label', label);
+  }
 
   // ---- Wishlist : images {src, id, name} du catalogue (localStorage), sans quantité ni figurine perso ----
   const WISH_KEY = 'popmart-wishlist';
@@ -513,12 +530,12 @@
   };
   function syncWishUi() {
     const owned = wishlist.filter((w) => inCol(w.src)).length;
-    $('wishShare').disabled = !wishlist.length;
     $('wishClean').hidden = !owned;
     $('wishClean').textContent = `Retirer les possédés (${owned})`;
     $('wishN').textContent = wishlist.length;
     $('tabWish').setAttribute('aria-label', `Wishlist (${wishlist.length})`);
     $('tabWish').title = `Wishlist (${wishlist.length})`;
+    syncShareBtn();
   }
 
   // ---- Affichage ----
@@ -831,10 +848,13 @@
     openFolder = null;
     setSelecting(false);
     $('tabAll').classList.toggle('on', v === 'all');
-    $('tabMine').classList.toggle('on', v === 'mine');
+    // la vue Collection s'ouvre par la pastille de l'en-tête : elle porte l'état actif (plus d'onglet Collection)
+    $('pill').classList.toggle('on', v === 'mine');
+    if (v === 'mine') $('pill').setAttribute('aria-current', 'page'); else $('pill').removeAttribute('aria-current');
     $('tabWish').classList.toggle('on', v === 'wish');
     $('tabEx').classList.toggle('on', v === 'ex');
     $('tools').hidden = v !== 'mine';
+    syncShareBtn();
     $('wishTools').hidden = v !== 'wish';
     $('exBar').hidden = v !== 'ex';
     if (v === 'ex') exItems = null;
@@ -2660,7 +2680,6 @@
   $('selCancel').onclick = () => setSelecting(false);
 
   $('tabAll').onclick = () => setView('all');
-  $('tabMine').onclick = () => setView('mine');
   $('tabWish').onclick = () => setView('wish');
   $('tabEx').onclick = () => setView('ex');
   $('bell').onclick = openNotifications;
@@ -2668,9 +2687,8 @@
   $('profileBtn').onclick = () => askProfile();
   $('colAdd').onclick = () => openFigureSheet();
   $('colBackup').onclick = openBackup;
-  $('colShare').onclick = openShare;
+  $('shareBtn').onclick = () => (view === 'wish' ? openWishShare() : openShare());
   $('colSync').onclick = openDirectMenu;
-  $('wishShare').onclick = openWishShare;
   $('wishClean').onclick = () => { wishlist = wishlist.filter((w) => !inCol(w.src)); persistWish(); render(); };
   $('scanBtn').onclick = openScanner;
   $('colClear').onclick = () => {

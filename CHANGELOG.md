@@ -2,6 +2,15 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.7.0 - 2026-11-21
+- Un seul bouton Partager (icône), dans la rangée d'onglets de l'en-tête, qui partage ce que montre la vue ouverte : la collection en vue Collection, la wishlist en vue Wishlist (invisible dans le catalogue et les échanges). Les boutons Share des barres d'outils disparaissent.
+
+## 1.6.2 - 2026-11-21
+- En-tête : suppression de l'onglet « Collection » (doublon de la pastille « collection N » près du compte et de la cloche). La pastille ouvre la collection et se détache par un contour quand la vue Collection est active ; il reste les onglets Catalogue, Échanges et Wishlist.
+
+## 1.6.1 - 2026-11-21
+- Vue Collection : les boutons « Ajouter » et « Share » deviennent des icônes seules (plus, partage), avec libellé accessible et infobulle.
+
 ## 1.6.0 - 2026-11-21
 - Le scanner de codes-barres / QR passe à côté de la zone de recherche (icône à droite du champ) : accessible depuis toutes les vues, y compris le catalogue, au lieu de la seule ligne d'outils de la collection.
 
