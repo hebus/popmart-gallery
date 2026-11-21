@@ -2,6 +2,9 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.5.0 - 2026-11-21
+- Transfert direct d'un appareil à l'autre (WebRTC) : QR code à scanner, connexion directe chiffrée, sans plafond de taille, photos en pleine qualité, dossiers et wishlist inclus, rien n'est stocké en ligne. Mise en relation par Supabase Realtime avec des messages chiffrés par une clé qui reste dans le lien.
+
 ## 1.4.0 - 2026-11-21
 - En-tête : la wishlist devient un onglet à icône cœur (avec compteur) à côté de Catalogue, Collection et Échanges ; la bascule « Collection (n) | Wishlist (n) » est supprimée.
 - Dossiers : la vue racine est repeinte proprement après chaque déplacement, création, renommage ou suppression (animations en cours coupées, transition CSS parasite retirée des cartes).

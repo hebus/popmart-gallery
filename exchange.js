@@ -200,8 +200,28 @@ window.Exchange = (() => {
     return () => sb.removeChannel(ch);
   }
 
+  // Canal de signalisation éphémère (Supabase Realtime « broadcast », aucune table) pour le transfert direct entre appareils.
+  // Le nom du canal est un secret aléatoire ; les messages sont chiffrés par l'appelant (voir index.html, section « Transfert direct »).
+  // Retourne { ready: Promise (abonné), send(payload), close() }.
+  function openChannel(name, onMessage) {
+    need();
+    const ch = sb.channel(name, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event: 'sig' }, ({ payload }) => onMessage(payload));
+    const ready = new Promise((resolve, reject) => {
+      ch.subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') resolve();
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(err?.message || 'Service de mise en relation indisponible (Realtime désactivé ?).'));
+      });
+    });
+    return {
+      ready,
+      send: (payload) => ch.send({ type: 'broadcast', event: 'sig', payload }),
+      close: () => { try { sb.removeChannel(ch); } catch {} },
+    };
+  }
+
   return {
-    configured, PAGE,
+    configured, PAGE, openChannel,
     get me() { return me; },
     createShare, getShare, deleteShare,
     loadMe, saveProfile, listListings, myListingsAll, myInterestIds, publish, removeListing, setInterest, contactsOf,

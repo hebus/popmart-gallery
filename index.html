@@ -253,6 +253,7 @@
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
+        <button id="colSync" class="icon" aria-label="Transfert direct vers un autre appareil" title="Transfert direct (appareil à appareil)"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h12M16 3l4 4-4 4M17 17H5M8 13l-4 4 4 4"/></svg></button>
         <button id="colNewFolder" class="icon" aria-label="Nouveau dossier" title="Nouveau dossier"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M12 11v6M9 14h6"/></svg></button>
         <button id="colSelect" class="icon" aria-label="Sélectionner des images" title="Sélectionner des images" aria-pressed="false"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></button>
         <button id="colScan" class="icon" aria-label="Scanner un code-barres ou un QR code" title="Scanner un code-barres ou un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
@@ -290,7 +291,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -1641,6 +1642,8 @@
   }
 
   async function importFromText(text) {
+    const pm = P2P_RE.exec(text);
+    if (pm) return receiveDirect(pm[1], pm[2]);
     const sm = /#s=([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})/.exec(text);
     if (sm) return importShare(sm[1], sm[2]);
     const wm = /#w=([A-Za-z0-9_-]+)/.exec(text);
@@ -1760,8 +1763,8 @@
         try { text = await detect(); } catch {}
         if (scanStream !== stream) return;
         if (text && BARCODE_RE.test(text)) { stopScan(); findByBarcode(text); return; }
-        if (text && /#[csw]=/.test(text)) { stopScan(); importFromText(text); return; }
-        if (text) msg.textContent = "Ce code n'est ni un code-barres produit ni une collection ou wishlist Pop Mart.";
+        if (text && /#[cswp]=/.test(text)) { stopScan(); importFromText(text); return; }
+        if (text) msg.textContent = "Ce code n'est ni un code-barres produit ni une collection, wishlist ou transfert Pop Mart.";
       }
       requestAnimationFrame(tick);
     };
@@ -1769,12 +1772,280 @@
   }
 
   function importFromHash() {
-    if (!/^#[csw]=/.test(location.hash)) return;
+    if (!/^#[cswp]=/.test(location.hash)) return;
     const h = location.hash;
     history.replaceState(null, '', location.pathname + location.search);
     importFromText(h);
   }
   addEventListener('hashchange', importFromHash);
+
+  // ---- Transfert direct entre deux appareils (WebRTC) ----
+  // Mise en relation : canal Supabase Realtime `popmart-p2p-<room>` ; tous les messages (offre, réponse, candidats ICE) sont chiffrés
+  // AES-GCM avec une clé qui n'existe que dans le fragment du lien `#p=<room, 32 hex>.<clé, 43 car.>` (jamais envoyée au serveur) :
+  // le serveur ne peut ni lire ni falsifier la négociation. Données : canal WebRTC (DTLS), jamais stockées nulle part. Le contenu est
+  // le conteneur de packShare (v2) avec les photos en pleine qualité, sans le plafond de 6 Mo du partage en ligne.
+  const P2P_RE = /#p=([0-9a-f]{32})\.([A-Za-z0-9_-]{43})/;
+  const P2P_ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
+  const P2P_CHUNK = 16 * 1024;                  // taille sûre entre navigateurs
+  const P2P_BUFFER = 4 * 1024 * 1024;           // contre-pression : on attend que la file d'envoi se vide
+  const P2P_MAX_BYTES = 300 * 1024 * 1024;
+  const P2P_WAIT_PEER = 5 * 60 * 1000, P2P_WAIT_LINK = 30 * 1000, P2P_WAIT_ACK = 60 * 1000;
+  const P2P_CANCELLED = Symbol('p2p-cancelled');
+
+  const hex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, '0')).join('');
+  const p2pKey = (keyB64) => crypto.subtle.importKey('raw', b64.dec(keyB64), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+  async function p2pSeal(key, obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj))));
+    const out = new Uint8Array(12 + ct.length);
+    out.set(iv); out.set(ct, 12);
+    return b64.enc(out);
+  }
+  async function p2pOpen(key, str) { // null si ce n'est pas un message authentique de l'autre appareil
+    try {
+      if (typeof str !== 'string' || str.length > 60000 || !/^[A-Za-z0-9_-]+$/.test(str)) return null;
+      const bytes = b64.dec(str);
+      return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.subarray(0, 12) }, key, bytes.subarray(12))));
+    } catch { return null; }
+  }
+
+  const directUnavailable = () => !Exchange.configured ? "Le service de mise en relation (Supabase) n'est pas configuré."
+    : !window.RTCPeerConnection || !crypto.subtle ? "Ce navigateur ne permet pas la connexion directe entre appareils."
+    : !navigator.onLine ? 'Hors ligne : le transfert direct a besoin d\'internet pour mettre les deux appareils en relation.' : '';
+
+  // role 'send' : attend le « hello » de l'autre appareil puis envoie l'offre ; 'recv' : dit « hello » puis répond.
+  // Résout { dc, close } quand le canal de données est ouvert ; `signal` interrompt ; `onState(texte)` informe l'interface.
+  async function p2pConnect(role, room, keyB64, { signal, onState = () => {} }) {
+    const key = await p2pKey(keyB64);
+    return new Promise((resolve, reject) => {
+      let pc = null, chan = null, helloTimer = 0, timer = 0, settled = false, started = false, haveRemote = false;
+      const queue = [];
+      const stopSignal = () => { clearInterval(helloTimer); clearTimeout(timer); chan?.close(); };
+      const fail = (e) => { if (settled) return; settled = true; stopSignal(); signal.removeEventListener('abort', onAbort); try { pc?.close(); } catch {} reject(e); };
+      const onAbort = () => fail(P2P_CANCELLED);
+      const arm = (ms, msg) => { clearTimeout(timer); timer = setTimeout(() => fail(new Error(msg)), ms); };
+      const done = (dc) => {
+        if (settled) return;
+        settled = true; stopSignal(); signal.removeEventListener('abort', onAbort);
+        resolve({ dc, close: () => { try { pc.close(); } catch {} } });
+      };
+      const send = (m) => p2pSeal(key, m).then((d) => chan.send({ d })).catch(() => {});
+      const hook = (dc) => { dc.binaryType = 'arraybuffer'; if (dc.readyState === 'open') done(dc); else dc.onopen = () => done(dc); };
+      const addIce = async (c) => { try { await pc.addIceCandidate(c); } catch {} };
+      const flushIce = async () => { haveRemote = true; for (const c of queue.splice(0)) await addIce(c); };
+      const makePc = () => {
+        pc = new RTCPeerConnection({ iceServers: P2P_ICE });
+        pc.onicecandidate = (e) => { if (e.candidate) send({ t: 'ice', c: e.candidate.toJSON() }); };
+        pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') fail(new Error('Connexion directe impossible : appareils sur des réseaux différents ou réseau filtré ? Essayez sur le même Wi-Fi, ou utilisez le partage par lien.')); };
+        pc.ondatachannel = (e) => hook(e.channel);
+      };
+      const onSig = async (payload) => {
+        const m = await p2pOpen(key, payload?.d);
+        if (!m || settled) return;
+        if (role === 'send' && m.t === 'hello' && !started) {
+          started = true;
+          onState('Appareil détecté, connexion…');
+          arm(P2P_WAIT_LINK, 'La connexion directe a échoué (délai dépassé).');
+          makePc();
+          hook(pc.createDataChannel('popmart', { ordered: true }));
+          await pc.setLocalDescription(await pc.createOffer());
+          send({ t: 'offer', sdp: pc.localDescription.toJSON() });
+        } else if (role === 'recv' && m.t === 'offer' && !started) {
+          started = true;
+          clearInterval(helloTimer);
+          onState('Connexion…');
+          arm(P2P_WAIT_LINK, 'La connexion directe a échoué (délai dépassé).');
+          makePc();
+          await pc.setRemoteDescription(m.sdp);
+          await flushIce();
+          await pc.setLocalDescription(await pc.createAnswer());
+          send({ t: 'answer', sdp: pc.localDescription.toJSON() });
+        } else if (role === 'send' && m.t === 'answer' && started && !haveRemote) {
+          await pc.setRemoteDescription(m.sdp);
+          await flushIce();
+        } else if (m.t === 'ice' && m.c) {
+          if (pc && haveRemote) await addIce(m.c); else queue.push(m.c);
+        }
+      };
+      if (signal.aborted) return reject(P2P_CANCELLED);
+      signal.addEventListener('abort', onAbort, { once: true });
+      chan = Exchange.openChannel('popmart-p2p-' + room, (p) => { onSig(p).catch(fail); });
+      chan.ready.then(() => {
+        if (role === 'recv') {
+          onState("Recherche de l'autre appareil…");
+          arm(P2P_WAIT_LINK, "L'autre appareil ne répond pas. Vérifiez qu'il affiche toujours le QR code.");
+          send({ t: 'hello' });
+          helloTimer = setInterval(() => send({ t: 'hello' }), 2500); // le « hello » n'est pas mis en file : on le répète jusqu'à l'offre
+        } else {
+          onState("En attente de l'autre appareil…");
+          arm(P2P_WAIT_PEER, "Aucun appareil ne s'est connecté (5 minutes écoulées).");
+        }
+      }).catch(fail);
+    });
+  }
+
+  const pctLabel = (n, total) => `${Math.floor((n * 100) / total)} %`;
+  const p2pClosed = () => new Error("L'autre appareil s'est déconnecté avant la fin du transfert.");
+
+  // Envoi : conteneur de packShare (photos pleine qualité) en blocs de 16 Ko avec contre-pression, puis attente de l'accusé de réception
+  async function p2pSendAll(dc, { signal, onPrepare, onProgress }) {
+    const alive = () => { if (signal.aborted) throw P2P_CANCELLED; if (dc.readyState !== 'open') throw p2pClosed(); };
+    const { backup } = await buildBackup({ raw: true, onProgress: (i, n) => { alive(); onPrepare(i, n); } });
+    const plain = await packShare(backup);
+    if (plain.length > P2P_MAX_BYTES) throw new Error(`Collection trop volumineuse pour le transfert direct (${Math.round(plain.length / 1048576)} Mo, maximum ${P2P_MAX_BYTES / 1048576} Mo).`);
+    alive();
+    const ack = new Promise((resolve, reject) => {
+      dc.onmessage = (e) => { try { const m = typeof e.data === 'string' && JSON.parse(e.data); if (m?.t === 'ack') resolve(m.ok !== false); } catch {} };
+      dc.onclose = () => reject(p2pClosed());
+    });
+    ack.catch(() => {});
+    dc.bufferedAmountLowThreshold = P2P_BUFFER / 4;
+    dc.send(JSON.stringify({ t: 'start', size: plain.length }));
+    let last = -1;
+    for (let off = 0; off < plain.length; off += P2P_CHUNK) {
+      while (dc.bufferedAmount > P2P_BUFFER) {
+        alive();
+        await new Promise((r) => { const t = setTimeout(r, 500); dc.addEventListener('bufferedamountlow', () => { clearTimeout(t); r(); }, { once: true }); });
+      }
+      alive();
+      dc.send(plain.subarray(off, off + P2P_CHUNK));
+      const p = Math.floor(((off + P2P_CHUNK) * 100) / plain.length);
+      if (p !== last) { last = p; onProgress(Math.min(off + P2P_CHUNK, plain.length), plain.length); }
+    }
+    dc.send(JSON.stringify({ t: 'end' }));
+    const ok = await Promise.race([ack, new Promise((_, rej) => setTimeout(() => rej(new Error("Pas d'accusé de réception de l'autre appareil : vérifiez qu'il a bien reçu la collection.")), P2P_WAIT_ACK))]);
+    if (!ok) throw new Error("L'autre appareil n'a pas pu lire les données reçues.");
+    return plain.length;
+  }
+
+  // Réception : assemble les blocs (taille annoncée vérifiée, jamais dépassée), puis unpackShare et parseBackupText valident tout
+  function p2pReceiveAll(dc, { signal, onProgress }) {
+    return new Promise((resolve, reject) => {
+      const chunks = [];
+      let size = -1, got = 0, finished = false, last = -1;
+      const fail = (e) => { if (!finished) { finished = true; reject(e); } };
+      signal.addEventListener('abort', () => fail(P2P_CANCELLED), { once: true });
+      dc.onclose = () => fail(p2pClosed());
+      dc.onmessage = async (e) => {
+        if (finished) return;
+        if (typeof e.data === 'string') {
+          let m;
+          try { m = JSON.parse(e.data); } catch { return fail(new Error('Transfert invalide.')); }
+          if (m?.t === 'start') {
+            if (size >= 0 || !Number.isInteger(m.size) || m.size < 7 || m.size > P2P_MAX_BYTES) return fail(new Error('Transfert invalide ou trop volumineux.'));
+            size = m.size;
+          } else if (m?.t === 'end') {
+            if (size < 0 || got !== size) return fail(new Error('Transfert incomplet.'));
+            finished = true;
+            const nack = () => { try { dc.send(JSON.stringify({ t: 'ack', ok: false })); } catch {} };
+            try {
+              const plain = new Uint8Array(await new Blob(chunks).arrayBuffer());
+              if (plain[0] !== 2) throw new Error('Transfert invalide.');
+              resolve({ text: await unpackShare(plain), ack: (ok) => { try { dc.send(JSON.stringify({ t: 'ack', ok })); } catch {} } });
+            } catch (err) { nack(); reject(err); }
+          }
+        } else {
+          if (size < 0) return fail(new Error('Transfert invalide.'));
+          got += e.data.byteLength;
+          if (got > size) return fail(new Error('Transfert invalide.'));
+          chunks.push(e.data);
+          const p = Math.floor((got * 100) / size);
+          if (p !== last) { last = p; onProgress(got, size); }
+        }
+      };
+    });
+  }
+
+  // Fermer la fenêtre (Annuler, fond, Échap) interrompt tout
+  function sheetAbort() {
+    const ac = new AbortController();
+    const onClose = () => ac.abort();
+    $('sheet').addEventListener('close', onClose, { once: true });
+    return { signal: ac.signal, release: () => $('sheet').removeEventListener('close', onClose) };
+  }
+
+  function openDirectMenu() {
+    const btns = mk('div', 'btns');
+    btns.append(
+      mkBtn('Envoyer ma collection', 'primary', openDirectSend),
+      mkBtn('Recevoir (scanner le QR)', '', openScanner),
+      mkBtn('Fermer', '', closeSheet),
+    );
+    showSheet(
+      mk('h2', '', 'Transfert vers un autre appareil'),
+      mk('p', '', "Les deux appareils se connectent directement, sans limite de taille ni de durée de lien : photos en pleine qualité, dossiers et wishlist, chiffrés de bout en bout, sans rien stocker en ligne. Gardez les deux écrans ouverts pendant le transfert."),
+      btns,
+    );
+  }
+
+  async function openDirectSend() {
+    const why = directUnavailable();
+    if (why) return notice('Transfert direct indisponible', why);
+    if (!collection.length && !folders.length) return notice('Collection vide', "Il n'y a rien à envoyer.");
+    const room = hex(16), keyB64 = b64.enc(crypto.getRandomValues(new Uint8Array(32)));
+    const link = `${BASE_URL}#p=${room}.${keyB64}`;
+    const status = mk('p', 'warn', 'Connexion au service…');
+    const qr = qrNode(link);
+    const btns = mk('div', 'btns');
+    btns.append(...linkButtons(link, 'Recevoir ma collection Pop Mart'), mkBtn('Annuler', '', closeSheet));
+    showSheet(
+      mk('h2', '', 'Envoyer à un autre appareil'),
+      qr ?? mk('p', 'warn', 'Générateur de QR code indisponible : copiez le lien.'),
+      mk('p', '', "Sur l'autre appareil : ouvrez Pop Mart, touchez l'icône de transfert puis « Recevoir », et scannez ce code (ou ouvrez le lien avec l'appareil photo). Gardez cet écran ouvert jusqu'à la fin."),
+      status,
+      mk('p', '', "Un serveur STUN public (Google) aide à trouver le chemin réseau : il voit l'adresse IP des appareils, jamais vos données. Fonctionne mieux sur le même Wi-Fi."),
+      btns,
+    );
+    const { signal, release } = sheetAbort();
+    let peer;
+    try {
+      peer = await p2pConnect('send', room, keyB64, { signal, onState: (s) => { status.textContent = s; } });
+      status.textContent = 'Connecté : préparation des photos…';
+      const bytes = await p2pSendAll(peer.dc, {
+        signal,
+        onPrepare: (i, n) => { status.textContent = `Préparation des photos : ${i}/${n}`; },
+        onProgress: (n, total) => { status.textContent = `Envoi : ${pctLabel(n, total)} (${(total / 1048576).toFixed(1)} Mo)`; },
+      });
+      const closeRow = mk('div', 'btns');
+      closeRow.append(mkBtn('Fermer', 'primary', closeSheet));
+      showSheet(mk('h2', '', 'Transfert terminé'), mk('p', '', `✓ Collection envoyée (${(bytes / 1048576).toFixed(1)} Mo). L'autre appareil propose maintenant de fusionner ou de remplacer.`), closeRow);
+    } catch (e) {
+      if (e !== P2P_CANCELLED) notice('Transfert impossible', e.message || 'Erreur inconnue');
+    } finally {
+      release();
+      setTimeout(() => peer?.close(), 1500);
+    }
+  }
+
+  async function receiveDirect(room, keyB64) {
+    const why = directUnavailable();
+    if (why) return notice('Transfert direct indisponible', why);
+    const status = mk('p', '', 'Connexion…');
+    const btns = mk('div', 'btns');
+    btns.append(mkBtn('Annuler', '', closeSheet));
+    showSheet(mk('h2', '', 'Réception depuis un autre appareil'), status, btns);
+    const { signal, release } = sheetAbort();
+    let peer;
+    try {
+      peer = await p2pConnect('recv', room, keyB64, { signal, onState: (s) => { status.textContent = s; } });
+      status.textContent = 'Connecté : réception…';
+      const { text, ack } = await p2pReceiveAll(peer.dc, {
+        signal,
+        onProgress: (n, total) => { status.textContent = `Réception : ${pctLabel(n, total)} (${(total / 1048576).toFixed(1)} Mo)`; },
+      });
+      status.textContent = 'Vérification…';
+      let parsed;
+      try { parsed = parseBackupText(text); } catch (e) { ack(false); throw e; }
+      ack(true);
+      release();
+      askBackup(parsed);
+    } catch (e) {
+      if (e !== P2P_CANCELLED) notice('Réception impossible', e.message || 'Erreur inconnue');
+    } finally {
+      release();
+      setTimeout(() => peer?.close(), 2000);
+    }
+  }
 
   // ---- Échanges / ventes, intérêts et notifications (Supabase, voir exchange.js) ----
   const myListings = new Map(); // `${productId}:${index}` -> annonce
@@ -2388,6 +2659,7 @@
   $('colAdd').onclick = () => openFigureSheet();
   $('colBackup').onclick = openBackup;
   $('colShare').onclick = openShare;
+  $('colSync').onclick = openDirectMenu;
   $('wishShare').onclick = openWishShare;
   $('wishClean').onclick = () => { wishlist = wishlist.filter((w) => !inCol(w.src)); persistWish(); render(); };
   $('colScan').onclick = openScanner;
