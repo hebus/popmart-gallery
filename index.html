@@ -32,7 +32,9 @@
   #pill { display:flex; align-items:center; gap:6px; min-height:44px; background:var(--accent); color:var(--on-accent); border:0; border-radius:999px; padding:0 14px; font-weight:700; font-size:.95rem; }
   #pill svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   #pillCount { display:inline-block; }
-  #q { width:100%; height:48px; padding:0 16px; font-size:1rem; font-family:inherit; border:1.5px solid var(--border); border-radius:14px; background:var(--card); color:var(--text); }
+  .search { display:flex; align-items:center; gap:8px; }
+  #scanBtn { flex:none; width:48px; height:48px; border-radius:14px; }
+  #q { flex:1; min-width:0; height:48px; padding:0 16px; font-size:1rem; font-family:inherit; border:1.5px solid var(--border); border-radius:14px; background:var(--card); color:var(--text); }
   #q:focus { outline:2px solid var(--accent); border-color:transparent; }
   .tabs { display:flex; gap:8px; margin-top:12px; }
   .tab { flex:1; min-height:44px; padding:0 12px; border:1.5px solid var(--border); border-radius:999px; background:var(--card); color:var(--text); font-size:.95rem; font-weight:500; transition:background .25s, color .25s, border-color .25s; }
@@ -239,7 +241,10 @@
         </button>
       </div>
     </div>
-    <input id="q" type="search" placeholder="Rechercher une figurine" aria-label="Rechercher une figurine">
+    <div class="search">
+      <input id="q" type="search" placeholder="Rechercher une figurine" aria-label="Rechercher une figurine">
+      <button id="scanBtn" class="iconbtn" aria-label="Scanner un code-barres ou un QR code" title="Scanner un code-barres ou un QR code"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
+    </div>
     <div class="tabs">
       <button class="tab on" id="tabAll">Catalogue</button>
       <button class="tab" id="tabMine">Collection</button>
@@ -262,7 +267,6 @@
         <button id="colSync" class="icon" aria-label="Transfert direct vers un autre appareil" title="Transfert direct (appareil à appareil)"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h12M16 3l4 4-4 4M17 17H5M8 13l-4 4 4 4"/></svg></button>
         <button id="colNewFolder" class="icon" aria-label="Nouveau dossier" title="Nouveau dossier"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M12 11v6M9 14h6"/></svg></button>
         <button id="colSelect" class="icon" aria-label="Sélectionner des images" title="Sélectionner des images" aria-pressed="false"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></button>
-        <button id="colScan" class="icon" aria-label="Scanner un code-barres ou un QR code" title="Scanner un code-barres ou un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
         <button id="colBackup" class="icon" aria-label="Sauvegarde de la collection" title="Sauvegarde de la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
         <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
       </div>
@@ -297,7 +301,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.5.1';
+  const APP_VERSION = '1.6.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -368,7 +372,7 @@
     const CLEAR = 'transform,opacity,visibility';
     return {
       intro() {
-        if (ok) g.from('.bar, #q, .tabs', { y: -16, autoAlpha: 0, stagger: .08, duration: .5, ease: 'power3.out', clearProps: CLEAR });
+        if (ok) g.from('.bar, .search, .tabs', { y: -16, autoAlpha: 0, stagger: .08, duration: .5, ease: 'power3.out', clearProps: CLEAR });
       },
       cardsIn(els) {
         if (ok && els.length) g.from(els.slice(0, 16), { y: 28, scale: .94, autoAlpha: 0, stagger: { each: .04, amount: .45 }, duration: .5, ease: 'power3.out', clearProps: CLEAR });
@@ -2668,7 +2672,7 @@
   $('colSync').onclick = openDirectMenu;
   $('wishShare').onclick = openWishShare;
   $('wishClean').onclick = () => { wishlist = wishlist.filter((w) => !inCol(w.src)); persistWish(); render(); };
-  $('colScan').onclick = openScanner;
+  $('scanBtn').onclick = openScanner;
   $('colClear').onclick = () => {
     const nCustom = collection.filter((c) => c.custom).length;
     if ((!collection.length && !folders.length) || !confirm(nCustom ? `Vider toute la collection ? Les ${nCustom} figurine(s) perso et leurs photos seront supprimées.` : 'Vider toute la collection ?')) return;
