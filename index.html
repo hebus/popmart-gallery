@@ -170,6 +170,46 @@
   .lb .gal img { flex:none; max-width:92%; max-height:75vh; max-height:75dvh; object-fit:contain; scroll-snap-align:center; border-radius:12px; }
   .lb .cap { color:#fff; text-align:center; font-size:.9rem; }
   .lb .x { align-self:flex-end; width:44px; height:44px; border:0; border-radius:50%; background:rgba(255,255,255,.2); color:#fff; font-size:1.1rem; }
+
+  /* Dossiers, sélection multiple et glisser-déposer (vue Collection) */
+  .tools button[hidden], #folderBar[hidden], #selBar[hidden] { display:none; }
+  #grid.col .card { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  #grid.col .pic img { -webkit-user-drag:none; pointer-events:none; }
+  .card { transition:transform .15s, opacity .2s; }
+  .fpic .mosaic { display:grid; grid-template-columns:1fr 1fr; gap:2px; aspect-ratio:1; background:var(--border); }
+  .fpic .mosaic img, .fpic .mosaic span { width:100%; height:100%; aspect-ratio:1; object-fit:cover; display:block; background:var(--border); }
+  .card.folder .info { flex-direction:row; align-items:center; justify-content:space-between; gap:8px; }
+  .fname { min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .fcount { font-size:.78rem; color:var(--muted); }
+  .card.folder .sbtn { flex:none; display:inline-flex; align-items:center; justify-content:center; }
+  .card.folder .ico-svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  #folderBar { padding:12px 0 0; display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+  #folderBar h2 { font-family:'Bricolage Grotesque',sans-serif; margin:0; font-size:1.3rem; }
+  #folderBar .back { margin-bottom:0; }
+  #folderBar .btns { width:100%; }
+  .selmark { display:none; position:absolute; top:8px; right:8px; width:28px; height:28px; border-radius:50%; border:2px solid #fff; background:rgba(0,0,0,.45); color:#fff; align-items:center; justify-content:center; pointer-events:none; }
+  .selmark svg { opacity:0; }
+  #grid.selecting .card[data-src] .selmark { display:flex; }
+  .card.selected { border-color:var(--accent); outline:3px solid var(--accent); outline-offset:-3px; }
+  .card.selected .selmark { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .card.selected .selmark svg { opacity:1; }
+  #grid.selecting .stepper, #grid.selecting .listed, #grid.selecting .row2 { display:none; }
+  #grid.selecting .card.folder { opacity:.45; }
+  #grid.selecting .card.folder .sbtn { pointer-events:none; }
+  body.dragging { cursor:grabbing; -webkit-user-select:none; user-select:none; }
+  body.dragging #grid.selecting .card.folder { opacity:1; }
+  .card.dragsrc { opacity:.35; }
+  .card.droptarget { outline:3px dashed var(--accent); outline-offset:-3px; transform:scale(1.03); }
+  #folderBack.droptarget { outline:3px dashed var(--accent); outline-offset:2px; }
+  .ghost { position:fixed; left:0; top:0; width:96px; height:96px; z-index:60; pointer-events:none; border-radius:14px; overflow:hidden; box-shadow:0 10px 28px rgba(0,0,0,.35); will-change:transform; }
+  .ghost img { width:100%; height:100%; object-fit:cover; display:block; }
+  .ghost .n { position:absolute; top:4px; right:4px; min-width:24px; height:24px; padding:0 6px; border-radius:999px; background:var(--accent); color:var(--on-accent); font-size:.8rem; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  #selBar { position:fixed; z-index:19; left:max(12px, env(safe-area-inset-left)); right:max(12px, env(safe-area-inset-right)); bottom:max(12px, env(safe-area-inset-bottom)); max-width:560px; margin:0 auto; background:var(--card); border:1.5px solid var(--border); border-radius:18px; padding:10px; display:flex; align-items:center; gap:8px; box-shadow:0 8px 28px rgba(0,0,0,.22); }
+  #selCount { flex:1; min-width:0; padding-left:6px; font-weight:700; font-size:.9rem; }
+  #selBar .btn { flex:none; padding:0 14px; }
+  body.selecting main.wrap { padding-bottom:88px; }
+  .dest { display:flex; flex-direction:column; gap:8px; }
+  .dest .btn { flex:none; text-align:left; }
 </style>
 </head>
 <body>
@@ -211,6 +251,8 @@
       <div class="tools" id="tools" hidden>
         <button id="colAdd" class="primary">+ Ajouter</button>
         <button id="colShare">Share</button>
+        <button id="colNewFolder" class="icon" aria-label="Nouveau dossier" title="Nouveau dossier"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><path d="M12 11v6M9 14h6"/></svg></button>
+        <button id="colSelect" class="icon" aria-label="Sélectionner des images" title="Sélectionner des images" aria-pressed="false"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg></button>
         <button id="colScan" class="icon" aria-label="Scanner un code-barres ou un QR code" title="Scanner un code-barres ou un QR code"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V6a2 2 0 012-2h2M16 4h2a2 2 0 012 2v2M20 16v2a2 2 0 01-2 2h-2M8 20H6a2 2 0 01-2-2v-2"/><path d="M4 12h16"/></svg></button>
         <button id="colBackup" class="icon" aria-label="Sauvegarde de la collection" title="Sauvegarde de la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg></button>
         <button id="colClear" class="icon" aria-label="Vider la collection" title="Vider la collection"><svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/></svg></button>
@@ -221,6 +263,7 @@
       <div class="pills" id="exScope"></div>
       <div class="pills" id="exKind"></div>
     </div>
+    <div id="folderBar" hidden></div>
     <div id="grid"></div>
     <div id="empty" hidden></div>
     <button id="more" hidden>Afficher plus</button>
@@ -228,6 +271,11 @@
   <section id="detail" hidden></section>
 </main>
 <footer id="ver"></footer>
+<div id="selBar" role="toolbar" aria-label="Sélection d'images" hidden>
+  <span id="selCount" aria-live="polite"></span>
+  <button id="selMove" class="btn primary">Déplacer…</button>
+  <button id="selCancel" class="btn">Annuler</button>
+</div>
 <div id="install" role="region" aria-label="Installer l'application" hidden></div>
 <dialog id="dlg"><div class="lb" id="lb"></div></dialog>
 <dialog id="sheet" class="sheet" aria-label="Partage de la collection"><div class="box" id="sheetBox"></div></dialog>
@@ -240,7 +288,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -405,10 +453,29 @@
       return p && p.images[0] ? { src: p.images[0], id: p.id, name: p.name } : null;
     }).filter((c) => c && c.src).map((c) => ({ ...c, qty: Number.isInteger(c.qty) && c.qty >= 1 ? Math.min(c.qty, 99) : 1 }));
   } catch {}
+  // ---- Dossiers (un seul niveau, créés uniquement à la racine) : [{id, name}] ; un item de la collection porte `folder` (id) ou rien (= racine) ----
+  const FOLDER_KEY = 'popmart-folders';
+  const MAX_FOLDER_NAME = 40, MAX_FOLDERS = 200;
+  const FOLDER_ID_RE = /^[0-9a-z-]{8,64}$/i;
+  const ICON_TRASH = '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3"/>';
+  let folders = [];
+  try {
+    const seenF = new Set();
+    folders = (JSON.parse(localStorage.getItem(FOLDER_KEY)) ?? [])
+      .filter((f) => f && typeof f.id === 'string' && FOLDER_ID_RE.test(f.id) && typeof f.name === 'string' && !seenF.has(f.id) && seenF.add(f.id))
+      .slice(0, MAX_FOLDERS).map((f) => ({ id: f.id, name: f.name.trim().slice(0, MAX_FOLDER_NAME) || 'Dossier' }));
+  } catch {}
+  // Un item qui référence un dossier inexistant retourne à la racine
+  for (const c of collection) if (c.folder && !folders.some((f) => f.id === c.folder)) delete c.folder;
+  const folderOf = (id) => folders.find((f) => f.id === id);
+  const folderItems = (id) => collection.filter((c) => c.folder === id);
+  let openFolder = null, selecting = false; // dossier ouvert (id) ; mode sélection multiple
+  const selected = new Set(); // src des items sélectionnés
+
   const inCol = (src) => collection.some((c) => c.src === src);
   const ownedCount = (id) => collection.filter((c) => c.id === id).length;
   const persist = () => {
-    try { localStorage.setItem(KEY, JSON.stringify(collection)); } catch {}
+    try { localStorage.setItem(KEY, JSON.stringify(collection)); localStorage.setItem(FOLDER_KEY, JSON.stringify(folders)); } catch {}
     $('pillCount').textContent = collection.length;
     syncWishUi();
     const shareable = collection.some((c) => !c.custom) || (Exchange.configured && collection.length > 0);
@@ -502,7 +569,9 @@
     const pic = mk('button', 'pic');
     pic.setAttribute('aria-label', `Agrandir ${c.name}`);
     pic.append(img(c.src, c.name));
-    pic.onclick = () => zoom(c.src, c.name);
+    pic.onclick = (ev) => (selecting || ev.ctrlKey || ev.metaKey) ? toggleSelect(c.src) : zoom(c.src, c.name);
+    const mark = mk('span', 'selmark');
+    mark.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>';
     const info = mk('div', 'info');
     const dec = mk('button', 'sbtn', '−'), inc = mk('button', 'sbtn', '+');
     dec.setAttribute('aria-label', `Un exemplaire de moins de ${c.name}`);
@@ -518,8 +587,32 @@
     const row = mk('div', 'row2');
     row.append(prop, rm);
     info.append(mk('div', 'name', c.name), stepper, mk('div', 'listed'), row);
-    el.append(pic, info);
+    el.append(pic, info, mark);
     paintCol(el, c);
+    paintSel(el);
+    return el;
+  }
+
+  // Carte d'un dossier : mosaïque des premières images, nombre d'images, suppression ; un clic l'ouvre
+  function folderCard(id) {
+    const f = folderOf(id), items = folderItems(id);
+    const el = mk('article', 'card folder');
+    el.dataset.folder = id;
+    const pic = mk('button', 'pic fpic');
+    pic.setAttribute('aria-label', `Ouvrir le dossier ${f.name}`);
+    const mosaic = mk('span', 'mosaic');
+    for (let i = 0; i < 4; i++) mosaic.append(items[i] ? img(items[i].src, items[i].name) : mk('span'));
+    pic.append(mosaic);
+    pic.onclick = () => { if (!selecting) openFolderView(id); };
+    const label = mk('div', 'fname');
+    label.append(mk('div', 'name', f.name), mk('div', 'fcount', `${items.length} image(s)`));
+    const rm = mk('button', 'sbtn');
+    rm.setAttribute('aria-label', `Supprimer le dossier ${f.name}`);
+    rm.innerHTML = `<svg class="ico-svg" viewBox="0 0 24 24" aria-hidden="true">${ICON_TRASH}</svg>`;
+    rm.onclick = () => deleteFolder(id);
+    const info = mk('div', 'info');
+    info.append(label, rm);
+    el.append(pic, info);
     return el;
   }
 
@@ -608,9 +701,20 @@
   }
 
   function render() {
+    $('grid').classList.toggle('col', view === 'mine');
     if (view === 'ex') return exView();
     const words = norm($('q').value).split(/\s+/).filter(Boolean);
-    found = (view === 'mine' ? collection : view === 'wish' ? wishlist : products).filter((p) => { const key = view === 'mine' || view === 'wish' ? (byId.get(p.id)?.key ?? norm(p.name)) : p.key; return words.every((w) => key.includes(w)); });
+    const match = (p) => { const key = view === 'all' ? p.key : (byId.get(p.id)?.key ?? norm(p.name)); return words.every((w) => key.includes(w)); };
+    if (view === 'mine') {
+      // Racine : dossiers puis images sans dossier ; dossier ouvert : ses images ; recherche : à plat sur toute la collection
+      if (openFolder && !folderOf(openFolder)) openFolder = null;
+      const inFolder = !!openFolder && !words.length;
+      const folderEntries = (list) => list.map((f) => ({ isFolder: true, id: f.id }));
+      found = words.length ? [...folderEntries(folders.filter((f) => words.every((w) => norm(f.name).includes(w)))), ...collection.filter(match)]
+        : inFolder ? folderItems(openFolder)
+        : [...folderEntries(folders), ...collection.filter((c) => !c.folder)];
+      drawFolderBar(inFolder);
+    } else found = (view === 'wish' ? wishlist : products).filter(match);
     $('grid').replaceChildren();
     shown = 0;
     more(true);
@@ -618,7 +722,7 @@
   }
 
   function more(animate) {
-    const els = found.slice(shown, shown + BATCH).map(view === 'mine' ? colCard : view === 'wish' ? wishCard : card);
+    const els = found.slice(shown, shown + BATCH).map(view === 'mine' ? (x) => (x.isFolder ? folderCard(x.id) : colCard(x)) : view === 'wish' ? wishCard : card);
     $('grid').append(...els);
     shown = Math.min(shown + BATCH, found.length);
     $('more').hidden = shown >= found.length;
@@ -630,7 +734,8 @@
 
   function updateMeta() {
     const unit = view === 'mine' ? 'image(s)' : view === 'wish' ? 'souhait(s)' : view === 'ex' ? 'annonce(s)' : 'produit(s)';
-    $('count').textContent = `${found.length} ${unit}`;
+    const nf = view === 'mine' ? found.filter((x) => x.isFolder).length : 0;
+    $('count').textContent = view === 'mine' ? `${nf ? `${nf} dossier(s) · ` : ''}${found.length - nf} ${unit}` : `${found.length} ${unit}`;
     const e = $('empty');
     const empty = found.length === 0 && !(view === 'ex' && exLoading);
     const wasHidden = e.hidden;
@@ -640,7 +745,8 @@
       const hint = exScope === 'mine' ? "Vous n'avez publié aucune annonce. Proposez une figurine depuis l'onglet Collection."
         : exScope === 'interested' ? "Vous n'avez marqué aucun intérêt." : 'Aucune annonce pour le moment.';
       setEmpty(exError ? 'Échanges indisponibles' : 'Aucune annonce', exError ?? hint);
-    } else if (view === 'mine' && !collection.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +, ou ajoutez votre propre figurine.', addAction());
+    } else if (view === 'mine' && openFolder && !$('q').value.trim()) setEmpty('Dossier vide', 'Retournez à la collection, puis glissez des images sur ce dossier, ou sélectionnez-les et touchez « Déplacer… ».');
+    else if (view === 'mine' && !collection.length && !folders.length) setEmpty('Collection vide', 'Ouvrez un produit du catalogue et ajoutez ses images avec le bouton +, ou ajoutez votre propre figurine.', addAction());
     else if (view === 'wish' && !wishlist.length) setEmpty('Wishlist vide', "Ouvrez un produit du catalogue et touchez le cœur sur une image pour l'ajouter à votre wishlist.");
     else {
       const q = $('q').value.trim().slice(0, 80);
@@ -713,6 +819,8 @@
     if (v === view && !detailOpen) return;
     if (detailOpen) leaveDetail();
     view = v;
+    openFolder = null;
+    setSelecting(false);
     $('tabAll').classList.toggle('on', v === 'all');
     $('tabMine').classList.toggle('on', v === 'mine' || v === 'wish');
     $('tabEx').classList.toggle('on', v === 'ex');
@@ -945,15 +1053,15 @@
         if (!blob) { missing++; continue; }
         if (shrink) blob = await processPhoto(blob, 640, 0.7);
         onProgress?.(++done, total);
-        items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, photo: await fileToDataUrl(blob) });
+        items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, folder: c.folder, photo: await fileToDataUrl(blob) });
       } else {
         const p = byId.get(c.id);
         items.push({ type: 'catalog', productId: c.id, imageIndex: p ? p.images.indexOf(c.src) : -1, image: c.src, productName: c.name,
-          productUrl: p?.url, price: p?.price, currency: p?.currency, quantity: c.qty });
+          productUrl: p?.url, price: p?.price, currency: p?.currency, quantity: c.qty, folder: c.folder });
       }
     }
     const wish = shrink ? undefined : wishlist.map((w) => ({ productId: w.id, imageIndex: byId.get(w.id)?.images.indexOf(w.src) ?? -1, image: w.src }));
-    return { backup: { app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items, ...(wish ? { wishlist: wish } : {}) }, missing };
+    return { backup: { app: BACKUP_APP, version: 1, exportedAt: new Date().toISOString(), count: items.length, items, ...(wish ? { wishlist: wish } : {}), ...(folders.length ? { folders: folders.map(({ id, name }) => ({ id, name })) } : {}) }, missing };
   }
 
   async function exportBackup() {
@@ -981,6 +1089,12 @@
     if (data.items.length > 2500) throw new Error('Sauvegarde trop volumineuse.');
     const catalog = [], custom = [], seen = new Set();
     let ignored = 0;
+    // Dossiers (clé optionnelle, absente des anciennes sauvegardes) : un item ne garde que l'id d'un dossier déclaré
+    const fids = new Set(), bFolders = [];
+    if (Array.isArray(data.folders)) for (const f of data.folders.slice(0, MAX_FOLDERS)) {
+      if (f && typeof f.id === 'string' && FOLDER_ID_RE.test(f.id) && typeof f.name === 'string' && f.name.trim() && !fids.has(f.id)) { fids.add(f.id); bFolders.push({ id: f.id, name: f.name.trim().slice(0, MAX_FOLDER_NAME) }); }
+    }
+    const fid = (v) => (typeof v === 'string' && fids.has(v) ? v : undefined);
     for (const it of data.items) {
       if (!it || typeof it !== 'object') { ignored++; continue; }
       const qty = Number.isInteger(it.quantity) && it.quantity >= 1 ? Math.min(it.quantity, 99) : 1;
@@ -990,14 +1104,14 @@
         const cid = typeof it.customId === 'string' && CUSTOM_ID_RE.test(it.customId) ? it.customId : newId();
         if (seen.has(cid)) continue;
         seen.add(cid);
-        custom.push({ customId: cid, name: it.name.trim().slice(0, 80), note: typeof it.note === 'string' ? it.note.trim().slice(0, 140) || undefined : undefined, qty, photo: it.photo });
+        custom.push({ customId: cid, name: it.name.trim().slice(0, 80), note: typeof it.note === 'string' ? it.note.trim().slice(0, 140) || undefined : undefined, qty, folder: fid(it.folder), photo: it.photo });
       } else {
         const p = typeof it.productId === 'string' && ID_RE.test(it.productId) ? byId.get(it.productId) : null;
         const src = !p ? null : typeof it.image === 'string' && p.images.includes(it.image) ? it.image : Number.isInteger(it.imageIndex) ? p.images[it.imageIndex] : null;
         if (!src) { ignored++; continue; }
         if (seen.has(src)) continue;
         seen.add(src);
-        catalog.push({ src, id: p.id, name: p.name, qty });
+        catalog.push({ src, id: p.id, name: p.name, qty, folder: fid(it.folder) });
       }
     }
     let wish = null; // null = sauvegarde sans wishlist (anciennes sauvegardes, partages) : la wishlist actuelle n'est pas touchée
@@ -1011,13 +1125,22 @@
         if (!wseen.has(src)) { wseen.add(src); wish.push({ src, id: p.id, name: p.name }); }
       }
     }
-    return { catalog, custom, ignored, wish };
+    return { catalog, custom, ignored, wish, folders: bFolders };
   }
 
   async function applyBackup(b, mode) {
     const status = mk('p', '', 'Préparation…');
     showSheet(mk('h2', '', 'Import en cours…'), status);
     let failed = 0;
+    // Dossiers : « Remplacer » repart de zéro ; sinon un dossier de même id ou de même nom est réutilisé
+    let nextFolders = mode === 'replace' ? [] : [...folders];
+    const idMap = new Map();
+    for (const bf of b.folders ?? []) {
+      let f = nextFolders.find((x) => x.id === bf.id) ?? nextFolders.find((x) => norm(x.name) === norm(bf.name));
+      if (!f && nextFolders.length < MAX_FOLDERS) { f = { id: bf.id, name: bf.name }; nextFolders = [...nextFolders, f]; }
+      if (f) idMap.set(bf.id, f.id);
+    }
+    const mapFolder = (c) => ({ ...c, folder: c.folder && idMap.has(c.folder) ? idMap.get(c.folder) : undefined });
     const room = Math.max(0, MAX_CUSTOM - (mode === 'merge' ? collection.filter((c) => c.custom).length : 0));
     const todo = b.custom.filter((c) => mode === 'replace' || !inCol(`local:${c.customId}`));
     failed += Math.max(0, todo.length - room);
@@ -1028,11 +1151,12 @@
     }
     const custom = [];
     for (const { c, blob } of ready) {
-      try { await photoStore.put(c.customId, blob); custom.push({ src: `local:${c.customId}`, id: `local:${c.customId}`, name: c.name, note: c.note, qty: c.qty, custom: true }); }
+      try { await photoStore.put(c.customId, blob); custom.push({ src: `local:${c.customId}`, id: `local:${c.customId}`, name: c.name, note: c.note, qty: c.qty, custom: true, folder: idMap.get(c.folder) }); }
       catch { failed++; }
     }
     const old = collection;
-    const fresh = b.catalog.filter((c) => mode === 'replace' || !inCol(c.src));
+    const fresh = b.catalog.filter((c) => mode === 'replace' || !inCol(c.src)).map(mapFolder);
+    folders = nextFolders;
     collection = mode === 'replace' ? [...fresh, ...custom] : [...collection, ...fresh, ...custom];
     if (mode === 'replace') for (const c of old) if (c.custom && !collection.some((n) => n.src === c.src)) photoStore.delete(c.src);
     navigator.storage?.persist?.().catch(() => {});
@@ -1049,7 +1173,7 @@
   function askBackup(b) {
     const total = b.catalog.length + b.custom.length + (b.wish?.length ?? 0);
     if (!total) return notice('Sauvegarde vide', 'Aucun élément reconnu dans ce fichier.');
-    const info = `${b.catalog.length} image(s) du catalogue · ${b.custom.length} figurine(s) perso` + (b.wish?.length ? ` · ${b.wish.length} souhait(s)` : '') + (b.ignored ? ` · ${b.ignored} ignoré(s)` : '');
+    const info = `${b.catalog.length} image(s) du catalogue · ${b.custom.length} figurine(s) perso` + (b.wish?.length ? ` · ${b.wish.length} souhait(s)` : '') + (b.folders?.length ? ` · ${b.folders.length} dossier(s)` : '') + (b.ignored ? ` · ${b.ignored} ignoré(s)` : '');
     if (!collection.length) return applyBackup(b, 'replace');
     const btns = mk('div', 'btns');
     btns.append(
@@ -1271,7 +1395,7 @@
   // Avec des figurines perso, il faut un partage en ligne chiffré (les photos ne tiennent pas dans un QR)
   async function openShare() {
     if (!collection.length) return;
-    if (collection.some((c) => c.custom) && Exchange.configured) return openEncryptedShare();
+    if ((collection.some((c) => c.custom) || folders.length) && Exchange.configured) return openEncryptedShare();
     return openLegacyShare('le partage en ligne est indisponible');
   }
 
@@ -1290,7 +1414,7 @@
       const nCustom = backup.items.filter((i) => i.type === 'custom').length;
       const nodes = [
         mk('h2', '', 'Partager ma collection'),
-        mk('p', '', `${backup.count} élément(s), dont ${nCustom} figurine(s) perso avec photo. Lien chiffré, valable 24 h.`),
+        mk('p', '', `${backup.count} élément(s), dont ${nCustom} figurine(s) perso avec photo.${backup.folders ? ` Organisation en ${backup.folders.length} dossier(s) incluse.` : ''} Lien chiffré, valable 24 h.`),
       ];
       if (missing) nodes.push(mk('p', 'warn', `${missing} photo(s) introuvable(s) non partagée(s).`));
       const qr = qrNode(link);
@@ -1363,6 +1487,7 @@
     const nodes = [mk('h2', '', 'Partager ma collection'), mk('p', '', `${images} image(s) · ${np} produit(s)`)];
     const nCustom = collection.filter((c) => c.custom).length;
     if (nCustom) nodes.push(mk('p', 'warn', `${nCustom} figurine(s) perso non incluse(s) dans ce QR : ${why}. La sauvegarde par fichier les inclut avec leurs photos.`));
+    if (folders.length) nodes.push(mk('p', 'warn', `Les ${folders.length} dossier(s) ne sont pas inclus dans ce QR (${why}). La sauvegarde par fichier les conserve.`));
     const qr = images ? qrNode(link) : null;
     if (qr) nodes.push(qr, mk('p', '', "Scannez ce QR code avec l'appareil photo ou avec le scanner de l'appli popmart."));
     else nodes.push(mk('p', 'warn', !images ? "Aucune image du catalogue à partager par ce QR. Utilisez la sauvegarde par fichier." : window.qrcode ? `Collection trop grande pour un QR code (${np} produits). Utilisez la sauvegarde par fichier.` : 'Générateur de QR code indisponible (hors ligne ?). Utilisez la sauvegarde par fichier.'));
@@ -1848,6 +1973,306 @@
     } catch {}
   }
 
+  // ---- Dossiers : nom suggéré, création, déplacement, suppression, sélection multiple, glisser-déposer ----
+  const GENERIC_FIRST = new Set(['the', 'mega', 'pop', 'baby', 'twinkle', 'sweet']); // premiers mots trop courants pour nommer un dossier
+  const clip = (s) => s.trim().slice(0, MAX_FOLDER_NAME).trim();
+
+  // Le catalogue n'a pas de champ famille/gamme : on déduit « <personnage> <série> » du nom du produit
+  function seriesOf(name) {
+    const s = name.replace(/[\[<][^\]>]*[\]>]/g, ' ').replace(/\s+/g, ' ').trim();
+    const m = /^(.*?)\s*[-–—]?\s*\bseries\b/i.exec(s);
+    if (m && m[1].trim()) return m[1].trim();
+    return s.split(/\s+[-–—×]\s+|\s+x\s+|\s+with\s+/i)[0].trim();
+  }
+
+  // Nom identique > plus long préfixe de mots commun > préfixe majoritaire ; '' si rien de fiable
+  function suggestFolderName(items) {
+    const pool = items.some((c) => !c.custom) ? items.filter((c) => !c.custom) : items;
+    const names = pool.map((c) => seriesOf(c.name)).filter(Boolean);
+    if (!names.length) return '';
+    if (names.every((n) => norm(n) === norm(names[0]))) return clip(names[0]);
+    const words = names.map((n) => n.split(' '));
+    let k = 0;
+    while (words.every((w) => w[k] && norm(w[k]) === norm(words[0][k]))) k++;
+    if (k >= 2 || (k === 1 && !GENERIC_FIRST.has(norm(words[0][0])))) return clip(words[0].slice(0, k).join(' '));
+    for (const n of [2, 1]) {
+      const count = new Map();
+      for (const w of words) {
+        if (w.length < n || (n === 1 && GENERIC_FIRST.has(norm(w[0])))) continue;
+        const p = w.slice(0, n).join(' '), key = norm(p);
+        count.set(key, [p, (count.get(key)?.[1] ?? 0) + 1]);
+      }
+      const best = [...count.values()].sort((a, b) => b[1] - a[1])[0];
+      if (best && best[1] * 2 > words.length) return clip(best[0]);
+    }
+    return '';
+  }
+
+  const uniqueFolderName = (name, exceptId) => {
+    const base = clip(name) || 'Dossier';
+    let n = base, i = 2;
+    while (folders.some((f) => f.id !== exceptId && norm(f.name) === norm(n))) n = `${base.slice(0, MAX_FOLDER_NAME - 5)} (${i++})`;
+    return n;
+  };
+
+  // Demande le nom (prérempli) ; résout `null` si l'utilisateur annule ou ferme la fenêtre
+  function askFolderName(initial, title = 'Nom du dossier', cta = 'Créer') {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (v) => {
+        if (done) return;
+        done = true;
+        $('sheet').removeEventListener('close', onClose);
+        closeSheet();
+        resolve(v);
+      };
+      const onClose = () => finish(null);
+      const input = mk('input');
+      input.maxLength = MAX_FOLDER_NAME;
+      input.value = initial || 'Nouveau dossier';
+      input.placeholder = 'Ex. DIMOO Mood Forecast';
+      const ok = mkBtn(cta, 'primary', () => finish(input.value.trim()));
+      const update = () => { ok.disabled = !input.value.trim(); };
+      input.oninput = update;
+      input.onkeydown = (e) => { if (e.key === 'Enter' && input.value.trim()) finish(input.value.trim()); };
+      const btns = mk('div', 'btns');
+      btns.append(ok, mkBtn('Annuler', '', () => finish(null)));
+      showSheet(mk('h2', '', title), field('Nom du dossier', input), btns);
+      $('sheet').addEventListener('close', onClose);
+      update();
+      input.focus();
+      input.select();
+    });
+  }
+
+  // Crée un dossier à la racine contenant `srcs` (peut être vide) après avoir demandé son nom
+  async function createFolderFrom(srcs) {
+    if (folders.length >= MAX_FOLDERS) { notice('Limite atteinte', `Vous ne pouvez pas créer plus de ${MAX_FOLDERS} dossiers.`); return null; }
+    const items = [...new Set(srcs)].map((s) => collection.find((c) => c.src === s)).filter(Boolean);
+    const name = await askFolderName(suggestFolderName(items));
+    if (name == null) return null;
+    const f = { id: newId(), name: uniqueFolderName(name) };
+    folders = [...folders, f];
+    for (const c of items) c.folder = f.id;
+    persist();
+    render();
+    return f;
+  }
+
+  function moveItems(srcs, folderId) {
+    const set = new Set(srcs);
+    for (const c of collection) if (set.has(c.src)) { if (folderId) c.folder = folderId; else delete c.folder; }
+    persist();
+    render();
+  }
+
+  async function renameFolder(id) {
+    const f = folderOf(id);
+    if (!f) return;
+    const name = await askFolderName(f.name, 'Renommer le dossier', 'Enregistrer');
+    if (name == null) return;
+    f.name = uniqueFolderName(name, id);
+    persist();
+    render();
+  }
+
+  // Un dossier non vide ne se supprime qu'après confirmation ; ses images retournent à la racine (rien n'est perdu)
+  function deleteFolder(id) {
+    const f = folderOf(id);
+    if (!f) return;
+    const items = folderItems(id);
+    if (items.length && !confirm(`Supprimer le dossier « ${f.name} » ? Les ${items.length} image(s) qu'il contient seront remises à la racine de la collection (aucune image n'est supprimée).`)) return;
+    for (const c of items) delete c.folder;
+    folders = folders.filter((x) => x.id !== id);
+    if (openFolder === id) openFolder = null;
+    persist();
+    render();
+  }
+
+  function openFolderView(id) {
+    $('q').value = '';
+    openFolder = id;
+    render();
+    scrollTo({ top: 0 });
+  }
+
+  function drawFolderBar(on) {
+    $('colNewFolder').hidden = on; // pas de dossier dans un dossier
+    $('folderBar').hidden = !on;
+    if (!on) return;
+    const f = folderOf(openFolder);
+    const back = mk('button', 'back', '← Retour à la collection');
+    back.id = 'folderBack';
+    back.onclick = () => { setSelecting(false); openFolder = null; render(); scrollTo({ top: 0 }); };
+    const btns = mk('div', 'btns');
+    btns.append(mkBtn('Renommer', '', () => renameFolder(f.id)), mkBtn('Supprimer le dossier', '', () => deleteFolder(f.id)));
+    $('folderBar').replaceChildren(back, mk('h2', '', f.name), btns);
+  }
+
+  // -- Sélection multiple (appui long, ou bouton « Sélectionner ») --
+  function paintSel(el) {
+    if (!el.dataset.src) return;
+    const on = selected.has(el.dataset.src), pic = el.querySelector('.pic');
+    el.classList.toggle('selected', on);
+    if (selecting) pic?.setAttribute('aria-pressed', on); else pic?.removeAttribute('aria-pressed');
+  }
+  function updateSelBar() {
+    $('selCount').textContent = selected.size ? `${selected.size} sélectionnée(s)` : 'Sélectionnez des images';
+    $('selMove').disabled = !selected.size;
+  }
+  function setSelecting(on) {
+    selecting = on;
+    if (!on) selected.clear();
+    $('grid').classList.toggle('selecting', on);
+    document.body.classList.toggle('selecting', on);
+    $('selBar').hidden = !on;
+    $('colSelect').setAttribute('aria-pressed', on);
+    for (const el of $('grid').children) paintSel(el);
+    updateSelBar();
+  }
+  function toggleSelect(src) {
+    if (!selecting) setSelecting(true);
+    if (!selected.delete(src)) selected.add(src);
+    const el = [...$('grid').children].find((e) => e.dataset.src === src);
+    if (el) paintSel(el);
+    updateSelBar();
+  }
+
+  function openMoveSheet() {
+    if (!selected.size) return;
+    const srcs = [...selected];
+    const current = new Set(srcs.map((s) => collection.find((c) => c.src === s)?.folder ?? null));
+    const list = mk('div', 'dest');
+    const done = (folderId) => { closeSheet(); setSelecting(false); moveItems(srcs, folderId); };
+    if ([...current].some(Boolean)) list.append(mkBtn('Racine de la collection (hors dossier)', '', () => done(null)));
+    for (const f of folders) {
+      if (current.size === 1 && current.has(f.id)) continue;
+      list.append(mkBtn(`${f.name} (${folderItems(f.id).length})`, '', () => done(f.id)));
+    }
+    list.append(mkBtn('+ Nouveau dossier…', 'primary', async () => {
+      const f = await createFolderFrom(srcs);
+      if (f) setSelecting(false);
+    }));
+    const btns = mk('div', 'btns');
+    btns.append(mkBtn('Annuler', '', closeSheet));
+    showSheet(mk('h2', '', `Déplacer ${srcs.length} image(s)`), list, btns);
+  }
+
+  // -- Glisser-déposer par événements pointer (le DnD HTML5 est peu fiable sur iOS) --
+  // Souris : glisser directement. Tactile : appui long (entre en sélection), puis glisser. Racine : sur une image => nouveau dossier, sur un dossier => déplacer ; dans un dossier : sur « Retour » => racine.
+  let drag = null, suppressClick = false;
+  const dragAllowed = () => view === 'mine' && !detailOpen && !norm($('q').value).trim();
+  const swallowClick = () => { suppressClick = true; setTimeout(() => { suppressClick = false; }, 80); };
+
+  function dropTarget(x, y) {
+    const el = document.elementFromPoint(x, y)?.closest('.card[data-src], .card[data-folder], #folderBack');
+    if (!el) return null;
+    if (el.id === 'folderBack') return { type: 'root', el };
+    if (openFolder) return null;
+    if (el.dataset.folder) return { type: 'folder', id: el.dataset.folder, el };
+    if (!drag.srcs.includes(el.dataset.src)) return { type: 'item', src: el.dataset.src, el };
+    return null;
+  }
+
+  function markTarget() {
+    const t = dropTarget(drag.x, drag.y);
+    if (t?.el !== drag.target?.el) { drag.target?.el.classList.remove('droptarget'); t?.el.classList.add('droptarget'); }
+    drag.target = t;
+  }
+
+  function autoScroll() {
+    const top = document.querySelector('.top').getBoundingClientRect().bottom;
+    if (drag.y < top + 40) scrollBy(0, -14); else if (drag.y > innerHeight - 70) scrollBy(0, 14);
+    markTarget();
+  }
+
+  function dragMove(e) {
+    drag.x = e.clientX; drag.y = e.clientY;
+    drag.ghost.style.transform = `translate(${e.clientX - 48}px, ${e.clientY - 48}px)`;
+    markTarget();
+  }
+
+  function dragStart(e) {
+    const src = drag.el.dataset.src, c = collection.find((x) => x.src === src);
+    if (!c) return dragEnd(false);
+    drag.srcs = selecting && selected.has(src) ? [...selected] : [src];
+    drag.mode = 'drag';
+    const g = mk('div', 'ghost');
+    g.append(img(c.src, c.name));
+    if (drag.srcs.length > 1) g.append(mk('span', 'n', String(drag.srcs.length)));
+    document.body.append(g);
+    drag.ghost = g;
+    drag.el.classList.add('dragsrc');
+    document.body.classList.add('dragging');
+    navigator.vibrate?.(10);
+    dragMove(e);
+    drag.scroller = setInterval(autoScroll, 16);
+  }
+
+  async function dropOn(srcs, t) {
+    if (t.type === 'folder' || t.type === 'root') { setSelecting(false); moveItems(srcs, t.type === 'folder' ? t.id : null); }
+    else if (await createFolderFrom([t.src, ...srcs])) setSelecting(false);
+  }
+
+  function dragEnd(commit) {
+    const d = drag;
+    if (!d) return;
+    drag = null;
+    clearTimeout(d.timer);
+    removeEventListener('pointermove', dragMoveH);
+    removeEventListener('pointerup', dragUpH);
+    removeEventListener('pointercancel', dragUpH);
+    if (d.mode === 'drag') {
+      clearInterval(d.scroller);
+      d.ghost.remove();
+      d.el.classList.remove('dragsrc');
+      d.target?.el.classList.remove('droptarget');
+      document.body.classList.remove('dragging');
+      swallowClick();
+      if (commit && d.target) dropOn(d.srcs, d.target);
+    } else if (d.mode === 'armed') swallowClick();
+  }
+
+  function longPress() {
+    if (!drag || drag.mode !== 'wait') return;
+    drag.mode = 'armed';
+    navigator.vibrate?.(15);
+    const src = drag.el.dataset.src;
+    if (!selecting) setSelecting(true);
+    if (!selected.has(src)) toggleSelect(src);
+  }
+
+  function dragMoveH(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    const dist = Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0);
+    if (drag.mode === 'wait') {
+      if (drag.touch) { if (dist > 8) dragEnd(false); } // le doigt fait défiler : ce n'est pas un appui long
+      else if (dist > 6 && dragAllowed()) dragStart(e);
+    } else if (drag.mode === 'armed') { if (dist > 8 && dragAllowed()) dragStart(e); }
+    else dragMove(e);
+  }
+  const dragUpH = (e) => { if (drag && e.pointerId === drag.pid) dragEnd(e.type === 'pointerup'); };
+
+  $('grid').addEventListener('pointerdown', (e) => {
+    if (view !== 'mine' || drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const el = e.target.closest('.card[data-src]');
+    if (!el || e.target.closest('.sbtn, .proposer, .add')) return;
+    drag = { el, pid: e.pointerId, x0: e.clientX, y0: e.clientY, mode: 'wait', touch: e.pointerType !== 'mouse' };
+    if (drag.touch) drag.timer = setTimeout(longPress, 450);
+    addEventListener('pointermove', dragMoveH);
+    addEventListener('pointerup', dragUpH);
+    addEventListener('pointercancel', dragUpH);
+  });
+  // Une fois l'appui long déclenché, le doigt ne doit plus faire défiler la page
+  $('grid').addEventListener('touchmove', (e) => { if (drag && drag.mode !== 'wait' && e.cancelable) e.preventDefault(); }, { passive: false });
+  $('grid').addEventListener('click', (e) => { if (suppressClick) { e.preventDefault(); e.stopPropagation(); } }, true);
+  $('grid').addEventListener('contextmenu', (e) => { if (view === 'mine' && isTouch && e.target.closest('.card')) e.preventDefault(); });
+
+  $('colNewFolder').onclick = () => createFolderFrom([]);
+  $('colSelect').onclick = () => setSelecting(!selecting);
+  $('selMove').onclick = openMoveSheet;
+  $('selCancel').onclick = () => setSelecting(false);
+
   $('tabAll').onclick = () => setView('all');
   $('tabMine').onclick = () => setView(view === 'wish' ? 'wish' : 'mine');
   $('tabEx').onclick = () => setView('ex');
@@ -1862,9 +2287,13 @@
   $('colScan').onclick = openScanner;
   $('colClear').onclick = () => {
     const nCustom = collection.filter((c) => c.custom).length;
-    if (!collection.length || !confirm(nCustom ? `Vider toute la collection ? Les ${nCustom} figurine(s) perso et leurs photos seront supprimées.` : 'Vider toute la collection ?')) return;
+    if ((!collection.length && !folders.length) || !confirm(nCustom ? `Vider toute la collection ? Les ${nCustom} figurine(s) perso et leurs photos seront supprimées.` : 'Vider toute la collection ?')) return;
     if (nCustom) photoStore.clear();
     collection = [];
+    folders = [];
+    openFolder = null;
+    setSelecting(false);
+    drawFolderBar(false);
     persist();
     const els = [...document.querySelectorAll('.card')];
     found = []; shown = 0;

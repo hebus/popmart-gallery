@@ -2,6 +2,14 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.3.0 - 2026-11-21
+- Dossiers dans la collection (un seul niveau : un dossier ne contient que des images, jamais d'autres dossiers ; création uniquement à la racine). Création par le bouton « Nouveau dossier », par glisser-déposer d'une image sur une autre, ou depuis une sélection.
+- Glisser une image sur un dossier la déplace dedans ; dans un dossier, la glisser sur « Retour à la collection » la remet à la racine.
+- Nom du dossier toujours demandé, prérempli d'après le nom des produits (personnage + série, ex. « THE MONSTERS » ou « DIMOO Mood Forecast »).
+- Sélection multiple façon galerie iPhone : appui long sur une image (ou bouton « Sélectionner », Ctrl/Cmd + clic sur PC), puis « Déplacer… » vers un dossier, la racine ou un nouveau dossier.
+- Renommer et supprimer un dossier ; la suppression d'un dossier non vide demande **toujours** une confirmation et remet ses images à la racine (aucune image n'est supprimée).
+- Les dossiers sont inclus dans la sauvegarde par fichier (clé optionnelle `folders`, format v1 inchangé) et dans le partage chiffré ; le QR `#c=` et le lien wishlist `#w=` restent à plat.
+
 ## 1.2.0 - 2026-11-19
 - Wishlist : cœur sur chaque image du détail d'un produit ; consultation dans l'onglet Collection (bascule Collection | Wishlist) ; « Déplacer » vers la collection ; suppression ; signalement des souhaits déjà en collection (+ « Retirer les possédés ») ; retrait automatique du souhait quand l'image est ajoutée à la collection.
 - Partage de la wishlist par lien et QR code (`#w=`, sans serveur), réception via scanner, lien collé ou appareil photo ; la wishlist est incluse dans la sauvegarde par fichier (jamais dans un partage chiffré).
