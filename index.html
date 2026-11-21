@@ -288,7 +288,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.3.1';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -1565,7 +1565,7 @@
   const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
 
   const SCAN_TITLE = 'Scanner';
-  const BARCODE_RE = /^d{8,14}$/;
+  const BARCODE_RE = /^\d{8,14}$/;
 
   // Code-barres absent du catalogue : écran dédié et lisible (code en grand, cause probable, actions) plutôt qu'un simple message grisé
   function unknownBarcode(code) {

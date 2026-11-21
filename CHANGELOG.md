@@ -2,6 +2,9 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.3.1 - 2026-11-21
+- Correctif : la saisie manuelle et le scan d'un code-barres n'étaient jamais reconnus comme tels (expression régulière `/^d{8,14}$/` sans antislash : elle n'acceptait que des « d » au lieu de chiffres) ; ils partaient dans l'import de lien. Corrigé en `/^\d{8,14}$/`.
+
 ## 1.3.0 - 2026-11-21
 - Dossiers dans la collection (un seul niveau : un dossier ne contient que des images, jamais d'autres dossiers ; création uniquement à la racine). Création par le bouton « Nouveau dossier », par glisser-déposer d'une image sur une autre, ou depuis une sélection.
 - Glisser une image sur un dossier la déplace dedans ; dans un dossier, la glisser sur « Retour à la collection » la remet à la racine.
