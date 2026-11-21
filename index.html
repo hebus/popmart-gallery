@@ -65,7 +65,8 @@
   #more { display:block; margin:0 auto 32px; min-height:44px; padding:0 24px; border:0; border-radius:999px; background:var(--accent); color:var(--on-accent); font-weight:700; }
   #more[hidden], #empty[hidden] { display:none; }
   #ver { color:var(--muted); font-size:.75rem; text-align:center; padding:0 16px calc(24px + env(safe-area-inset-bottom)); }
-  #empty { text-align:center; color:var(--muted); padding:56px 0; line-height:1.5; }
+  #empty { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:max(40dvh, calc(100dvh - 340px)); text-align:center; color:var(--muted); padding:24px 0 56px; line-height:1.5; }
+  #empty p { margin:0; max-width:34ch; }
   #empty b { display:block; font-family:'Bricolage Grotesque',sans-serif; font-size:1.25rem; color:var(--text); margin-bottom:6px; }
 
   .owned { color:var(--muted); font-size:.78rem; }
@@ -129,7 +130,7 @@
   .tools .icon { width:44px; padding:0; display:inline-flex; align-items:center; justify-content:center; }
   .tools .ico-svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
   .tools .primary { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:700; }
-  #empty .btn { flex:none; margin-top:16px; padding:0 20px; }
+  #empty .btn { flex:none; align-self:center; margin-top:20px; padding:0 20px; }
   .listed { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
   .iconbtn { position:relative; width:44px; height:44px; border-radius:50%; border:1.5px solid var(--border); background:var(--card); color:var(--text); display:flex; align-items:center; justify-content:center; padding:0; }
   .iconbtn[hidden], #bellBadge[hidden], #exBar[hidden] { display:none; }
@@ -301,7 +302,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.7.1';
+  const APP_VERSION = '1.7.2';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -755,7 +756,7 @@
     if (animate) fx.cardsIn(els);
   }
 
-  const setEmpty = (title, text, ...extra) => $('empty').replaceChildren(mk('b', '', title), document.createTextNode(text), ...extra);
+  const setEmpty = (title, text, ...extra) => $('empty').replaceChildren(mk('b', '', title), mk('p', '', text), ...extra);
   const addAction = (name = '') => mkBtn(name ? `Ajouter « ${name} » à ma collection` : 'Ajouter une figurine', 'primary', () => openFigureSheet(null, name));
 
   function updateMeta() {

@@ -2,6 +2,9 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.7.2 - 2026-11-21
+- États vides (collection vide, aucun résultat…) : message centré verticalement dans la zone sous l'en-tête, largeur de texte limitée, et le bouton « Ajouter une figurine » sur sa propre ligne, centré.
+
 ## 1.7.1 - 2026-11-21
 - En-tête : ordre des boutons inversé, de gauche à droite « collection N », alertes, compte.
 
