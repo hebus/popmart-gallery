@@ -104,10 +104,13 @@ window.Exchange = (() => {
   }
 
   // ---- Partage chiffré (voir supabase/shares.sql) : le serveur ne reçoit que du texte chiffré ----
-  async function createShare(data) {
+  // signal (AbortSignal, optionnel) : interrompt l'envoi (annulation par l'utilisateur ou délai dépassé)
+  async function createShare(data, { signal } = {}) {
     need();
     await ensureUser();
-    const { data: id, error } = await sb.rpc('create_share', { p_data: data });
+    let req = sb.rpc('create_share', { p_data: data });
+    if (signal) req = req.abortSignal(signal);
+    const { data: id, error } = await req;
     if (error) throw new Error(error.message);
     return id;
   }

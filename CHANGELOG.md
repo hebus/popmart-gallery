@@ -2,6 +2,11 @@
 
 Numérotation semver : **majeure** = changement incompatible (format de sauvegarde, de partage), **mineure** = nouvelle fonctionnalité, **correctif** = correction. La version affichée en pied de page vient de `APP_VERSION` dans `index.html` ; la date du catalogue vient de `window.PRODUCTS_META` (`products.js`, généré par `node list-products.mjs`). À chaque livraison : incrémenter `APP_VERSION`, ajouter une entrée ici, puis commiter.
 
+## 1.4.0 - 2026-11-21
+- En-tête : la wishlist devient un onglet à icône cœur (avec compteur) à côté de Catalogue, Collection et Échanges ; la bascule « Collection (n) | Wishlist (n) » est supprimée.
+- Dossiers : la vue racine est repeinte proprement après chaque déplacement, création, renommage ou suppression (animations en cours coupées, transition CSS parasite retirée des cartes).
+- Partage chiffré : conteneur binaire (photos en octets bruts, plus de base64 dans du JSON, ≈ −25 %), photos en WebP avec compression adaptative sur 5 niveaux pour tenir dans le plafond, progression détaillée, annulation réelle (fermer la fenêtre interrompt tout), délai d'envoi maximum de 90 s. Les anciens partages restent lisibles.
+
 ## 1.3.1 - 2026-11-21
 - Correctif : la saisie manuelle et le scan d'un code-barres n'étaient jamais reconnus comme tels (expression régulière `/^d{8,14}$/` sans antislash : elle n'acceptait que des « d » au lieu de chiffres) ; ils partaient dans l'import de lien. Corrigé en `/^\d{8,14}$/`.
 

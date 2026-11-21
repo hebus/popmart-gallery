@@ -80,11 +80,14 @@
   .tile.in img { opacity:.8; }
   .tile .add { position:absolute; right:8px; bottom:8px; }
   .tile .wish { position:absolute; left:8px; top:8px; width:44px; height:44px; border-radius:50%; border:0; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; padding:0; transition:background .25s, color .25s; }
-  .tile .wish[hidden], #mineSwitch[hidden], #wishTools[hidden] { display:none; }
+  .tile .wish[hidden], #wishTools[hidden] { display:none; }
   .tile .wish svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
   .tile .wish.on { background:var(--accent); color:var(--on-accent); }
   .tile .wish.on svg { fill:currentColor; }
-  #mineSwitch { margin-top:0; }
+  .tab.icon { flex:none; min-width:60px; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:0 12px; }
+  .tab.icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .tab.icon.on svg { fill:currentColor; }
+  #wishN { font-size:.85rem; font-weight:700; }
   .tile .zoom { position:absolute; top:8px; right:8px; width:36px; height:36px; border:0; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; font-size:1rem; }
   #dlg { border:0; padding:0; background:transparent; max-width:100vw; max-height:100vh; max-height:100dvh; width:100%; height:100%; }
   .sheet { border:0; padding:0; background:transparent; width:min(420px, calc(100vw - 32px)); max-width:none; color:var(--text); overflow:visible; }
@@ -175,7 +178,6 @@
   .tools button[hidden], #folderBar[hidden], #selBar[hidden] { display:none; }
   #grid.col .card { -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
   #grid.col .pic img { -webkit-user-drag:none; pointer-events:none; }
-  .card { transition:transform .15s, opacity .2s; }
   .fpic .mosaic { display:grid; grid-template-columns:1fr 1fr; gap:2px; aspect-ratio:1; background:var(--border); }
   .fpic .mosaic img, .fpic .mosaic span { width:100%; height:100%; aspect-ratio:1; object-fit:cover; display:block; background:var(--border); }
   .card.folder .info { flex-direction:row; align-items:center; justify-content:space-between; gap:8px; }
@@ -236,6 +238,7 @@
       <button class="tab on" id="tabAll">Catalogue</button>
       <button class="tab" id="tabMine">Collection</button>
       <button class="tab" id="tabEx">Échanges</button>
+      <button class="tab icon" id="tabWish" aria-label="Wishlist" title="Wishlist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span id="wishN">0</span></button>
     </div>
   </div>
 </div>
@@ -243,7 +246,6 @@
   <div id="offline" role="status" hidden>Hors ligne : catalogue, collection et figurines perso restent disponibles ; échanges et partage en ligne nécessitent internet.</div>
   <div id="catalog">
     <div class="meta-row">
-      <div class="pills" id="mineSwitch" hidden></div>
       <div class="tools" id="wishTools" hidden>
         <button id="wishShare">Share</button>
         <button id="wishClean" hidden></button>
@@ -288,7 +290,7 @@
 <script src="exchange.js"></script>
 <script>
   // Version de l'appli : à incrémenter à chaque livraison (semver) avec une entrée dans CHANGELOG.md. La date du catalogue vient de products.js.
-  const APP_VERSION = '1.3.1';
+  const APP_VERSION = '1.4.0';
   const BATCH = 40;
   const norm = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const barcodesOf = (p) => [...new Set((p.skus ?? []).map((s) => s.barCode).filter(Boolean))];
@@ -503,13 +505,9 @@
     $('wishShare').disabled = !wishlist.length;
     $('wishClean').hidden = !owned;
     $('wishClean').textContent = `Retirer les possédés (${owned})`;
-    drawMineSwitch();
-  }
-  function drawMineSwitch() {
-    $('mineSwitch').replaceChildren(
-      pillBtn(`Collection (${collection.length})`, view !== 'wish', () => setView('mine')),
-      pillBtn(`Wishlist (${wishlist.length})`, view === 'wish', () => setView('wish')),
-    );
+    $('wishN').textContent = wishlist.length;
+    $('tabWish').setAttribute('aria-label', `Wishlist (${wishlist.length})`);
+    $('tabWish').title = `Wishlist (${wishlist.length})`;
   }
 
   // ---- Affichage ----
@@ -822,12 +820,11 @@
     openFolder = null;
     setSelecting(false);
     $('tabAll').classList.toggle('on', v === 'all');
-    $('tabMine').classList.toggle('on', v === 'mine' || v === 'wish');
+    $('tabMine').classList.toggle('on', v === 'mine');
+    $('tabWish').classList.toggle('on', v === 'wish');
     $('tabEx').classList.toggle('on', v === 'ex');
     $('tools').hidden = v !== 'mine';
     $('wishTools').hidden = v !== 'wish';
-    $('mineSwitch').hidden = v !== 'mine' && v !== 'wish';
-    drawMineSwitch();
     $('exBar').hidden = v !== 'ex';
     if (v === 'ex') exItems = null;
     render();
@@ -916,7 +913,8 @@
   const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
   // Réduit à 1024 px et ré-encode en JPEG : supprime aussi les métadonnées EXIF (dont la localisation GPS)
-  async function processPhoto(file, maxSide = 1024, quality = 0.82) {
+  // type : 'image/webp' préféré pour le partage (≈ 30 % plus léger) ; repli JPEG si le navigateur ne sait pas encoder en WebP (Safari)
+  async function processPhoto(file, maxSide = 1024, quality = 0.82, type = 'image/jpeg') {
     if (file.type && !file.type.startsWith('image/')) throw new Error("Ce fichier n'est pas une image.");
     if (file.size > 25 * 1024 * 1024) throw new Error('Image trop volumineuse (25 Mo maximum).');
     let bmp;
@@ -937,7 +935,8 @@
     ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
     bmp.close?.();
-    const blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', quality));
+    let blob = await new Promise((res) => c.toBlob(res, type, quality));
+    if (blob && blob.type !== type) blob = await new Promise((res) => c.toBlob(res, 'image/jpeg', quality));
     if (!blob) throw new Error('Impossible de traiter cette image.');
     return blob;
   }
@@ -1042,8 +1041,10 @@
   const ICON_UPLOAD = '<path d="M12 15V3M7 8l5-5 5 5M4 21h16"/>';
   const fileToDataUrl = (blob) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
 
-  // shrink : photos ré-encodées à 640 px / qualité 0,7 (partage en ligne) ; onProgress(i, n) pour les figurines perso
-  async function buildBackup({ shrink = false, onProgress } = {}) {
+  // shrink : photos ré-encodées (partage en ligne) avec `photo` = { side, q, type } (défaut 640 px / 0,7 JPEG) ; raw : photos en Blob
+  // (conteneur binaire du partage) au lieu de data URL ; onProgress(i, n) pour les figurines perso (peut lever pour annuler)
+  async function buildBackup({ shrink = false, raw = false, photo, onProgress } = {}) {
+    const P = photo ?? { side: 640, q: 0.7, type: 'image/jpeg' };
     const items = [];
     const total = collection.filter((c) => c.custom).length;
     let missing = 0, done = 0;
@@ -1051,9 +1052,9 @@
       if (c.custom) {
         let blob = await photoStore.get(c.src);
         if (!blob) { missing++; continue; }
-        if (shrink) blob = await processPhoto(blob, 640, 0.7);
+        if (shrink) blob = await processPhoto(blob, P.side, P.q, P.type);
         onProgress?.(++done, total);
-        items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, folder: c.folder, photo: await fileToDataUrl(blob) });
+        items.push({ type: 'custom', customId: c.src.slice(6), name: c.name, note: c.note, quantity: c.qty, folder: c.folder, photo: raw ? blob : await fileToDataUrl(blob) });
       } else {
         const p = byId.get(c.id);
         items.push({ type: 'catalog', productId: c.id, imageIndex: p ? p.images.indexOf(c.src) : -1, image: c.src, productName: c.name,
@@ -1305,12 +1306,57 @@
   const SHARE_MAX_BYTES = 6 * 1024 * 1024;
   const SHARE_MAX_PLAIN = 60 * 1024 * 1024;
 
-  async function encryptShare(obj) {
-    const raw = new TextEncoder().encode(JSON.stringify(obj));
-    let body = raw, flag = 0;
-    if (window.CompressionStream) { try { body = await deflate(raw); flag = 1; } catch {} }
-    const plain = new Uint8Array(body.length + 1);
-    plain[0] = flag; plain.set(body, 1);
+  // Conteneur binaire v2 (flag 2) : [2][1 = JSON compressé | 0 = brut][u32 longueur du JSON][JSON][photos concaténées].
+  // Les photos (JPEG/WebP, déjà compressées) y sont en octets bruts : pas de base64 dans du JSON (−25 %) ni de deflate inutile sur elles.
+  // Dans le JSON, chaque figurine perso porte `photoType` et `photoLen` à la place de `photo` ; `unpackShare` refait les data URL.
+  const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  async function packShare(backup) {
+    const blobs = [];
+    const items = backup.items.map((it) => {
+      if (it.type !== 'custom') return it;
+      const { photo, ...rest } = it;
+      blobs.push(photo);
+      return { ...rest, photoType: PHOTO_TYPES.includes(photo.type) ? photo.type : 'image/jpeg', photoLen: photo.size };
+    });
+    const json = new TextEncoder().encode(JSON.stringify({ ...backup, items }));
+    let body = json, comp = 0;
+    if (window.CompressionStream) { try { body = await deflate(json); comp = 1; } catch {} }
+    const head = new Uint8Array(6);
+    head[0] = 2; head[1] = comp;
+    new DataView(head.buffer).setUint32(2, body.length);
+    return new Uint8Array(await new Blob([head, body, ...blobs]).arrayBuffer());
+  }
+
+  async function unpackShare(plain) {
+    const bad = () => new Error('Partage non reconnu');
+    if (plain.length < 6) throw bad();
+    const comp = plain[1], n = new DataView(plain.buffer, plain.byteOffset + 2, 4).getUint32(0);
+    if (n > plain.length - 6) throw bad();
+    const body = plain.subarray(6, 6 + n);
+    let text;
+    if (comp === 1) {
+      if (!window.DecompressionStream) throw new Error('Navigateur non compatible avec ce partage.');
+      text = await inflate(body, SHARE_MAX_PLAIN);
+    } else if (comp === 0) text = new TextDecoder().decode(body);
+    else throw bad();
+    let data;
+    try { data = JSON.parse(text); } catch { throw bad(); }
+    if (!Array.isArray(data?.items)) throw bad();
+    let pos = 6 + n;
+    for (const it of data.items) {
+      if (it?.type !== 'custom') continue;
+      const { photoLen: len, photoType: type } = it;
+      if (!Number.isInteger(len) || len < 0 || pos + len > plain.length || !PHOTO_TYPES.includes(type)) throw bad();
+      it.photo = await fileToDataUrl(new Blob([plain.subarray(pos, pos + len)], { type }));
+      pos += len;
+      delete it.photoLen; delete it.photoType;
+    }
+    if (pos !== plain.length) throw bad();
+    return JSON.stringify(data); // même texte qu'une sauvegarde : parseBackupText valide tout
+  }
+
+  // plain : octets du conteneur (voir packShare)
+  async function encryptShare(plain) {
     const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plain));
@@ -1333,6 +1379,7 @@
       if (!window.DecompressionStream) throw new Error('Navigateur non compatible avec ce partage.');
       return inflate(plain.subarray(1), SHARE_MAX_PLAIN);
     }
+    if (plain[0] === 2) return unpackShare(plain);
     if (plain[0] === 0) return new TextDecoder().decode(plain.subarray(1));
     throw new Error('Partage non reconnu');
   }
@@ -1399,23 +1446,70 @@
     return openLegacyShare('le partage en ligne est indisponible');
   }
 
+  // Niveaux de compression des photos du partage, du plus fin au plus léger (WebP si le navigateur sait l'encoder, sinon JPEG)
+  const SHARE_TIERS = [
+    { side: 640, q: 0.7, type: 'image/webp' },
+    { side: 520, q: 0.62, type: 'image/webp' },
+    { side: 420, q: 0.55, type: 'image/webp' },
+    { side: 340, q: 0.5, type: 'image/webp' },
+    { side: 260, q: 0.45, type: 'image/webp' },
+  ];
+  const tierCost = (t) => t.side * t.side * t.q; // la taille d'une photo évolue à peu près comme ses pixels × sa qualité
+  const SHARE_UPLOAD_TIMEOUT = 90000;
+  const SHARE_CANCELLED = Symbol('share-cancelled');
+
   async function openEncryptedShare() {
     const status = mk('p', '', 'Préparation du partage chiffré…');
     const closeRow = mk('div', 'btns');
-    closeRow.append(mkBtn('Fermer', '', closeSheet));
+    closeRow.append(mkBtn('Annuler', '', closeSheet));
     showSheet(mk('h2', '', 'Partager ma collection'), status, closeRow);
+    // Fermer la fenêtre (Annuler, fond, Échap) interrompt la préparation et l'envoi : plus de fenêtre qui se rouvre toute seule
+    const ac = new AbortController();
+    const onClose = () => ac.abort();
+    $('sheet').addEventListener('close', onClose, { once: true });
+    const alive = () => { if (ac.signal.aborted) throw SHARE_CANCELLED; };
     try {
-      const { backup, missing } = await buildBackup({ shrink: true, onProgress: (i, n) => { status.textContent = `Photos : ${i}/${n}`; } });
+      let tier = 0, built, packed;
+      for (;;) {
+        const t = SHARE_TIERS[tier];
+        built = await buildBackup({ shrink: true, raw: true, photo: t, onProgress: (i, n) => {
+          alive();
+          status.textContent = `Compression des photos${tier ? ` (niveau ${tier + 1}/${SHARE_TIERS.length})` : ''} : ${i}/${n}`;
+        } });
+        alive();
+        status.textContent = 'Assemblage…';
+        packed = await packShare(built.backup);
+        alive();
+        if (packed.length + 28 <= SHARE_MAX_BYTES || tier === SHARE_TIERS.length - 1) break;
+        // Trop gros : on saute directement au premier niveau qui devrait tenir plutôt que de les essayer un par un
+        const need = (SHARE_MAX_BYTES - 28) / packed.length;
+        let next = tier + 1;
+        while (next < SHARE_TIERS.length - 1 && tierCost(SHARE_TIERS[next]) > tierCost(SHARE_TIERS[tier]) * need * 0.9) next++;
+        tier = next;
+      }
+      const { backup, missing } = built;
       status.textContent = 'Chiffrement…';
-      const { data, key, bytes } = await encryptShare(backup);
+      const { data, key, bytes } = await encryptShare(packed);
+      alive();
       status.textContent = `Envoi (${(bytes / 1048576).toFixed(1)} Mo)…`;
-      const id = await Exchange.createShare(data);
+      let timedOut = false;
+      const timer = setTimeout(() => { timedOut = true; ac.abort(); }, SHARE_UPLOAD_TIMEOUT);
+      let id;
+      try { id = await Exchange.createShare(data, { signal: ac.signal }); }
+      catch (e) {
+        if (timedOut) throw new Error("l'envoi a pris trop de temps (connexion trop lente ou trop de photos)");
+        if (ac.signal.aborted) throw SHARE_CANCELLED;
+        throw e;
+      }
+      finally { clearTimeout(timer); }
+      alive();
       const link = `${BASE_URL}#s=${id}.${key}`;
       const nCustom = backup.items.filter((i) => i.type === 'custom').length;
       const nodes = [
         mk('h2', '', 'Partager ma collection'),
-        mk('p', '', `${backup.count} élément(s), dont ${nCustom} figurine(s) perso avec photo.${backup.folders ? ` Organisation en ${backup.folders.length} dossier(s) incluse.` : ''} Lien chiffré, valable 24 h.`),
+        mk('p', '', `${backup.count} élément(s), dont ${nCustom} figurine(s) perso avec photo (${(bytes / 1048576).toFixed(1)} Mo).${backup.folders ? ` Organisation en ${backup.folders.length} dossier(s) incluse.` : ''} Lien chiffré, valable 24 h.`),
       ];
+      if (tier) nodes.push(mk('p', '', `Photos compressées (niveau ${tier + 1}/${SHARE_TIERS.length}) pour tenir dans un partage en ligne ; la sauvegarde par fichier garde la pleine qualité.`));
       if (missing) nodes.push(mk('p', 'warn', `${missing} photo(s) introuvable(s) non partagée(s).`));
       const qr = qrNode(link);
       nodes.push(qr ?? mk('p', 'warn', 'Générateur de QR code indisponible : copiez le lien.'));
@@ -1430,7 +1524,10 @@
       btns.append(stop, mkBtn('Fermer', '', closeSheet));
       showSheet(...nodes, btns);
     } catch (e) {
+      if (e === SHARE_CANCELLED) return;
       openLegacyShare(`partage en ligne impossible (${e.message || 'erreur'})`);
+    } finally {
+      $('sheet').removeEventListener('close', onClose);
     }
   }
 
@@ -2045,6 +2142,14 @@
     });
   }
 
+  // Repeint la collection après une modification (déplacement, création, suppression) : on coupe d'abord les animations
+  // encore en cours sur les anciennes cartes pour qu'elles ne s'appliquent pas aux nouvelles, puis on force le calcul de mise en page.
+  function refreshCol() {
+    window.gsap?.killTweensOf('#grid .card');
+    render();
+    void $('grid').offsetHeight;
+  }
+
   // Crée un dossier à la racine contenant `srcs` (peut être vide) après avoir demandé son nom
   async function createFolderFrom(srcs) {
     if (folders.length >= MAX_FOLDERS) { notice('Limite atteinte', `Vous ne pouvez pas créer plus de ${MAX_FOLDERS} dossiers.`); return null; }
@@ -2055,7 +2160,7 @@
     folders = [...folders, f];
     for (const c of items) c.folder = f.id;
     persist();
-    render();
+    refreshCol();
     return f;
   }
 
@@ -2063,7 +2168,7 @@
     const set = new Set(srcs);
     for (const c of collection) if (set.has(c.src)) { if (folderId) c.folder = folderId; else delete c.folder; }
     persist();
-    render();
+    refreshCol();
   }
 
   async function renameFolder(id) {
@@ -2073,7 +2178,7 @@
     if (name == null) return;
     f.name = uniqueFolderName(name, id);
     persist();
-    render();
+    refreshCol();
   }
 
   // Un dossier non vide ne se supprime qu'après confirmation ; ses images retournent à la racine (rien n'est perdu)
@@ -2086,7 +2191,7 @@
     folders = folders.filter((x) => x.id !== id);
     if (openFolder === id) openFolder = null;
     persist();
-    render();
+    refreshCol();
   }
 
   function openFolderView(id) {
@@ -2274,7 +2379,8 @@
   $('selCancel').onclick = () => setSelecting(false);
 
   $('tabAll').onclick = () => setView('all');
-  $('tabMine').onclick = () => setView(view === 'wish' ? 'wish' : 'mine');
+  $('tabMine').onclick = () => setView('mine');
+  $('tabWish').onclick = () => setView('wish');
   $('tabEx').onclick = () => setView('ex');
   $('bell').onclick = openNotifications;
   $('pill').onclick = () => setView('mine');
